@@ -163,6 +163,39 @@ def car_to_warehouse_redirect():
 def settings_page():
     return render_template('settings.html')
 
+CATALOG_CACHE_FILE = 'catalog_cache.json'
+
+def get_cached_catalog(force_refresh=False):
+    if not force_refresh and os.path.exists(CATALOG_CACHE_FILE):
+        try:
+            with open(CATALOG_CACHE_FILE, 'r') as f:
+                cache = json.load(f)
+                if cache.get("objects"):
+                    return {"objects": list(cache["objects"].values())}
+        except Exception as e:
+            print(f"Error reading catalog cache: {e}")
+
+    cache: Dict[str, Any] = {"last_updated_at": None, "objects": {}}
+    try:
+        categories = [o.dict() for o in client.catalog.list(types='CATEGORY')]
+        items = [o.dict() for o in client.catalog.list(types='ITEM')]
+        all_objects = categories + items
+        cache["last_updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        cache["objects"] = {o['id']: o for o in all_objects if o.get('id')}
+        with open(CATALOG_CACHE_FILE, 'w') as f:
+            json.dump(cache, f, indent=2)
+        return {"objects": all_objects}
+    except Exception as e:
+        print(f"Error fetching catalog from Square: {e}")
+        if os.path.exists(CATALOG_CACHE_FILE):
+            try:
+                with open(CATALOG_CACHE_FILE, 'r') as f:
+                    old_cache = json.load(f)
+                    return {"objects": list(old_cache.get("objects", {}).values())}
+            except Exception:
+                pass
+        return {"objects": []}
+
 SETTINGS_FILE = 'item_settings.json'
 
 def get_bige_settings_obj():
@@ -176,32 +209,154 @@ def get_bige_settings_obj():
         print(f"Error fetching catalog custom attribute definition: {e}")
     return None
 
-def load_settings():
-    # Try fetching site-wide settings from Square Catalog
-    obj = get_bige_settings_obj()
-    if obj:
-        desc = obj.get('custom_attribute_definition_data', {}).get('description')
-        if desc:
-            try:
-                square_settings = json.loads(desc)
-                if isinstance(square_settings, dict):
-                    try:
-                        with open(SETTINGS_FILE, 'w') as f:
-                            json.dump(square_settings, f, indent=4)
-                    except Exception:
-                        pass
-                    return square_settings
-            except Exception as e:
-                print(f"Error parsing Square settings JSON: {e}")
+def serialize_item_settings(item_obj, all_settings):
+    """
+    Given a Square Catalog ITEM object and a dict of all variation settings
+    {variation_id: {'case_size': int, 'visible': bool}},
+    return a compact JSON string (< 240 chars) to store in bige_item_settings.
+    """
+    variations = item_obj.get('item_data', {}).get('variations', [])
+    if not variations:
+        return None
 
-    # Fallback to local file if available
+    if len(variations) == 1:
+        v_id = variations[0]['id']
+        s = all_settings.get(v_id)
+        if s is not None:
+            return json.dumps({
+                'case_size': int(s.get('case_size', 12)),
+                'visible': bool(s.get('visible', False))
+            })
+        return None
+
+    # Multiple variations:
+    payload = {}
+    for v in variations:
+        v_id = v['id']
+        s = all_settings.get(v_id)
+        if s is not None:
+            payload[v_id] = [int(s.get('case_size', 12)), 1 if s.get('visible') else 0]
+
+    encoded = json.dumps(payload)
+    if len(encoded) <= 240:
+        return encoded
+
+    # If too long, use index mapping: {"vars": {"0": [12, 1], ...}}
+    idx_payload = {"vars": {}}
+    for idx, v in enumerate(variations):
+        v_id = v['id']
+        s = all_settings.get(v_id)
+        if s is not None:
+            idx_payload["vars"][str(idx)] = [int(s.get('case_size', 12)), 1 if s.get('visible') else 0]
+    return json.dumps(idx_payload)
+
+def deserialize_item_settings(item_obj, string_value):
+    """
+    Parse string_value from bige_item_settings and return dict of {variation_id: {'case_size': int, 'visible': bool}}
+    """
+    res = {}
+    variations = item_obj.get('item_data', {}).get('variations', [])
+    if not variations or not string_value:
+        return res
+
+    try:
+        data = json.loads(string_value)
+    except Exception:
+        return res
+
+    # Single variation item format: {"case_size": 12, "visible": true}
+    if 'case_size' in data or 'visible' in data:
+        v_id = variations[0]['id']
+        res[v_id] = {
+            'case_size': int(data.get('case_size', 12)),
+            'visible': bool(data.get('visible', False))
+        }
+        return res
+
+    # Index format: {"vars": {"0": [12, 1], ...}}
+    if 'vars' in data and isinstance(data['vars'], dict):
+        for idx_str, val in data['vars'].items():
+            try:
+                idx = int(idx_str)
+                if idx < len(variations):
+                    v_id = variations[idx]['id']
+                    if isinstance(val, list) and len(val) >= 2:
+                        res[v_id] = {
+                            'case_size': int(val[0]),
+                            'visible': bool(val[1])
+                        }
+            except Exception:
+                pass
+        return res
+
+    # Variation ID format: {var_id: [12, 1]} or {var_id: {"case_size": 12, "visible": true}}
+    if isinstance(data, dict):
+        for v_id, val in data.items():
+            if isinstance(val, list) and len(val) >= 2:
+                res[v_id] = {
+                    'case_size': int(val[0]),
+                    'visible': bool(val[1])
+                }
+            elif isinstance(val, dict):
+                res[v_id] = {
+                    'case_size': int(val.get('case_size', 12)),
+                    'visible': bool(val.get('visible', False))
+                }
+    return res
+
+def load_settings():
+    settings = {}
+
+    # 1. Fallback / local file
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, 'r') as f:
-                return json.load(f)
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    settings.update(loaded)
         except Exception as e:
             print(f"Error reading local settings file: {e}")
-    return {}
+
+    # 2. Extract settings from Square Catalog items (from cached catalog)
+    try:
+        catalog = get_cached_catalog()
+        for obj in catalog.get('objects', []):
+            if obj.get('type') == 'ITEM':
+                custom_vals = obj.get('custom_attribute_values') or {}
+                attr_val = custom_vals.get('bige_item_settings', {}).get('string_value')
+                if attr_val:
+                    item_settings = deserialize_item_settings(obj, attr_val)
+                    settings.update(item_settings)
+    except Exception as e:
+        print(f"Error extracting settings from catalog items: {e}")
+
+    # 3. Load _allowed_users from Square definition description or allowed_users.json
+    try:
+        obj = get_bige_settings_obj()
+        if obj:
+            desc = obj.get('custom_attribute_definition_data', {}).get('description')
+            if desc:
+                desc_data = json.loads(desc)
+                if isinstance(desc_data, dict) and '_allowed_users' in desc_data:
+                    settings['_allowed_users'] = desc_data['_allowed_users']
+    except Exception as e:
+        print(f"Error loading _allowed_users from Square: {e}")
+
+    if '_allowed_users' not in settings and os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, 'r') as f:
+                settings['_allowed_users'] = json.load(f).get('allowed_users', [])
+        except Exception:
+            pass
+
+    # Save merged settings back to local cache file
+    try:
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(settings, f, indent=4)
+    except Exception:
+        pass
+
+    return settings
 
 def save_settings(settings):
     # 1. Update local file backup
@@ -211,37 +366,118 @@ def save_settings(settings):
     except Exception as e:
         print(f"Error saving settings locally: {e}")
 
-    # 2. Update site-wide settings in Square Catalog
+    # 2. Update site-wide _allowed_users in Square Custom Attribute Definition
     try:
-        obj = get_bige_settings_obj()
-        obj_id = obj['id'] if obj else '#bige_settings'
-        version = obj['version'] if obj else None
+        allowed_users = settings.get('_allowed_users')
+        if allowed_users is not None:
+            obj = get_bige_settings_obj()
+            obj_id = obj['id'] if obj else '#bige_settings'
+            version = obj['version'] if obj else None
 
-        attr_data: CatalogCustomAttributeDefinitionParams = {
-            'key': 'bige_item_settings',
-            'name': 'Big E Item Settings',
-            'description': json.dumps(settings),
-            'type': 'STRING',
-            'allowed_object_types': ['ITEM'],
-            'seller_visibility': 'SELLER_VISIBILITY_READ_WRITE_VALUES',
-            'app_visibility': 'APP_VISIBILITY_READ_WRITE_VALUES'
-        }
-        req_obj: CatalogObject_CustomAttributeDefinitionParams = {
-            'type': 'CUSTOM_ATTRIBUTE_DEFINITION',
-            'id': obj_id,
-            'custom_attribute_definition_data': attr_data
-        }
-        if version:
-            req_obj['version'] = version
+            desc_payload = json.dumps({'_allowed_users': allowed_users})
+            if len(desc_payload) <= 250:
+                attr_data: CatalogCustomAttributeDefinitionParams = {
+                    'key': 'bige_item_settings',
+                    'name': 'Big E Item Settings',
+                    'description': desc_payload,
+                    'type': 'STRING',
+                    'allowed_object_types': ['ITEM'],
+                    'seller_visibility': 'SELLER_VISIBILITY_READ_WRITE_VALUES',
+                    'app_visibility': 'APP_VISIBILITY_READ_WRITE_VALUES'
+                }
+                req_obj: CatalogObject_CustomAttributeDefinitionParams = {
+                    'type': 'CUSTOM_ATTRIBUTE_DEFINITION',
+                    'id': obj_id,
+                    'custom_attribute_definition_data': attr_data
+                }
+                if version:
+                    req_obj['version'] = version
 
-        res = client.catalog.object.upsert(
-            idempotency_key=str(uuid.uuid4()),
-            object=req_obj
-        )
-        return res.dict()
+                client.catalog.object.upsert(
+                    idempotency_key=str(uuid.uuid4()),
+                    object=req_obj
+                )
     except Exception as e:
-        print(f"Error saving settings to Square Catalog: {e}")
-        return None
+        print(f"Error saving _allowed_users to Square Catalog: {e}")
+
+    # 3. Update individual ITEM custom attribute values in Square Catalog
+    try:
+        catalog = get_cached_catalog()
+        cached_objects = {o['id']: o for o in catalog.get('objects', []) if o.get('id')}
+        items_to_update = []
+
+        for obj_id, obj in cached_objects.items():
+            if obj.get('type') == 'ITEM':
+                new_str = serialize_item_settings(obj, settings)
+                if new_str is None:
+                    continue
+
+                curr_str = (obj.get('custom_attribute_values') or {}).get('bige_item_settings', {}).get('string_value')
+                if curr_str != new_str:
+                    items_to_update.append((obj, new_str))
+
+        if items_to_update:
+            batch_objects = []
+            for item_obj, new_str in items_to_update:
+                custom_vals = item_obj.get('custom_attribute_values') or {}
+                custom_vals['bige_item_settings'] = {
+                    'string_value': new_str
+                }
+                batch_objects.append({
+                    'type': 'ITEM',
+                    'id': item_obj['id'],
+                    'version': item_obj['version'],
+                    'item_data': item_obj['item_data'],
+                    'custom_attribute_values': custom_vals
+                })
+
+            for i in range(0, len(batch_objects), 100):
+                chunk = batch_objects[i:i+100]
+                try:
+                    res = client.catalog.batch_upsert(
+                        idempotency_key=str(uuid.uuid4()),
+                        batches=[{'objects': chunk}]
+                    )
+                    res_dict = res.dict()
+                    if res_dict.get('objects'):
+                        for updated_obj in res_dict['objects']:
+                            cached_objects[updated_obj['id']] = updated_obj
+                except Exception as batch_err:
+                    print(f"Batch upsert failed ({batch_err}), fetching latest item versions from Square and retrying...")
+                    refreshed_chunk = []
+                    for itm in chunk:
+                        try:
+                            fresh = client.catalog.object.get(object_id=itm['id']).dict()['object']
+                            itm['version'] = fresh['version']
+                            itm['item_data'] = fresh['item_data']
+                            refreshed_chunk.append(itm)
+                        except Exception:
+                            pass
+                    if refreshed_chunk:
+                        res2 = client.catalog.batch_upsert(
+                            idempotency_key=str(uuid.uuid4()),
+                            batches=[{'objects': refreshed_chunk}]
+                        )
+                        res2_dict = res2.dict()
+                        if res2_dict.get('objects'):
+                            for updated_obj in res2_dict['objects']:
+                                cached_objects[updated_obj['id']] = updated_obj
+
+            # Save updated catalog cache to file
+            try:
+                with open(CATALOG_CACHE_FILE, 'w') as f:
+                    json.dump({
+                        "last_updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "objects": cached_objects
+                    }, f, indent=2)
+            except Exception as e:
+                print(f"Error updating catalog cache: {e}")
+
+    except Exception as e:
+        print(f"Error saving item custom attributes to Square: {e}")
+        return False
+
+    return True
 
 @app.route('/api/settings', methods=['GET', 'POST'])
 def api_settings():
@@ -251,8 +487,11 @@ def api_settings():
         # Keep _allowed_users intact if not present in incoming settings
         if '_allowed_users' not in incoming and '_allowed_users' in current:
             incoming['_allowed_users'] = current['_allowed_users']
-        save_settings(incoming)
-        return jsonify({"status": "success"})
+        success = save_settings(incoming)
+        if success:
+            return jsonify({"status": "success"})
+        else:
+            return jsonify({"status": "error", "message": "Failed to save settings to Square"}), 500
     return jsonify(load_settings())
 
 @app.route('/api/users', methods=['GET', 'POST'])
@@ -312,38 +551,7 @@ def get_locations():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-CATALOG_CACHE_FILE = 'catalog_cache.json'
 
-def get_cached_catalog(force_refresh=False):
-    if not force_refresh and os.path.exists(CATALOG_CACHE_FILE):
-        try:
-            with open(CATALOG_CACHE_FILE, 'r') as f:
-                cache = json.load(f)
-                if cache.get("objects"):
-                    return {"objects": list(cache["objects"].values())}
-        except Exception as e:
-            print(f"Error reading catalog cache: {e}")
-
-    cache: Dict[str, Any] = {"last_updated_at": None, "objects": {}}
-    try:
-        categories = [o.dict() for o in client.catalog.list(types='CATEGORY')]
-        items = [o.dict() for o in client.catalog.list(types='ITEM')]
-        all_objects = categories + items
-        cache["last_updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        cache["objects"] = {o['id']: o for o in all_objects if o.get('id')}
-        with open(CATALOG_CACHE_FILE, 'w') as f:
-            json.dump(cache, f, indent=2)
-        return {"objects": all_objects}
-    except Exception as e:
-        print(f"Error fetching catalog from Square: {e}")
-        if os.path.exists(CATALOG_CACHE_FILE):
-            try:
-                with open(CATALOG_CACHE_FILE, 'r') as f:
-                    old_cache = json.load(f)
-                    return {"objects": list(old_cache.get("objects", {}).values())}
-            except Exception:
-                pass
-        return {"objects": []}
 
 @app.route('/api/catalog')
 def get_catalog():
