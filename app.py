@@ -1,7 +1,10 @@
+from typing import Dict, Any, Optional
 import os
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from square.client import Square
 from square.environment import SquareEnvironment
+from square.requests.catalog_object import CatalogObject_CustomAttributeDefinitionParams
+from square.requests.catalog_custom_attribute_definition import CatalogCustomAttributeDefinitionParams
 from dotenv import load_dotenv
 from authlib.integrations.flask_client import OAuth
 import datetime
@@ -78,15 +81,83 @@ def settings_page():
 
 SETTINGS_FILE = 'item_settings.json'
 
+def get_bige_settings_obj():
+    try:
+        res = client.catalog.list(types='CUSTOM_ATTRIBUTE_DEFINITION')
+        for o in res:
+            obj = o.dict()
+            if obj.get('custom_attribute_definition_data', {}).get('key') == 'bige_item_settings':
+                return obj
+    except Exception as e:
+        print(f"Error fetching catalog custom attribute definition: {e}")
+    return None
+
 def load_settings():
+    # Try fetching site-wide settings from Square Catalog
+    obj = get_bige_settings_obj()
+    if obj:
+        desc = obj.get('custom_attribute_definition_data', {}).get('description')
+        if desc:
+            try:
+                square_settings = json.loads(desc)
+                if isinstance(square_settings, dict):
+                    try:
+                        with open(SETTINGS_FILE, 'w') as f:
+                            json.dump(square_settings, f, indent=4)
+                    except Exception:
+                        pass
+                    return square_settings
+            except Exception as e:
+                print(f"Error parsing Square settings JSON: {e}")
+
+    # Fallback to local file if available
     if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, 'r') as f:
-            return json.load(f)
+        try:
+            with open(SETTINGS_FILE, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error reading local settings file: {e}")
     return {}
 
 def save_settings(settings):
-    with open(SETTINGS_FILE, 'w') as f:
-        json.dump(settings, f, indent=4)
+    # 1. Update local file backup
+    try:
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(settings, f, indent=4)
+    except Exception as e:
+        print(f"Error saving settings locally: {e}")
+
+    # 2. Update site-wide settings in Square Catalog
+    try:
+        obj = get_bige_settings_obj()
+        obj_id = obj['id'] if obj else '#bige_settings'
+        version = obj['version'] if obj else None
+
+        attr_data: CatalogCustomAttributeDefinitionParams = {
+            'key': 'bige_item_settings',
+            'name': 'Big E Item Settings',
+            'description': json.dumps(settings),
+            'type': 'STRING',
+            'allowed_object_types': ['ITEM'],
+            'seller_visibility': 'SELLER_VISIBILITY_READ_WRITE_VALUES',
+            'app_visibility': 'APP_VISIBILITY_READ_WRITE_VALUES'
+        }
+        req_obj: CatalogObject_CustomAttributeDefinitionParams = {
+            'type': 'CUSTOM_ATTRIBUTE_DEFINITION',
+            'id': obj_id,
+            'custom_attribute_definition_data': attr_data
+        }
+        if version:
+            req_obj['version'] = version
+
+        res = client.catalog.object.upsert(
+            idempotency_key=str(uuid.uuid4()),
+            object=req_obj
+        )
+        return res.dict()
+    except Exception as e:
+        print(f"Error saving settings to Square Catalog: {e}")
+        return None
 
 @app.route('/api/settings', methods=['GET', 'POST'])
 def api_settings():
@@ -94,6 +165,7 @@ def api_settings():
         save_settings(request.json)
         return jsonify({"status": "success"})
     return jsonify(load_settings())
+
 
 
 
@@ -117,7 +189,7 @@ def get_cached_catalog(force_refresh=False):
         except Exception as e:
             print(f"Error reading catalog cache: {e}")
 
-    cache = {"last_updated_at": None, "objects": {}}
+    cache: Dict[str, Any] = {"last_updated_at": None, "objects": {}}
     try:
         categories = [o.dict() for o in client.catalog.list(types='CATEGORY')]
         items = [o.dict() for o in client.catalog.list(types='ITEM')]
