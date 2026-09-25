@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Denied - Big E Inventory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="icon" type="image/svg+xml" href="/static/bige_icon.svg">
+    <style>
+        body {
+            background-color: #f0f2f5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 20px;
+        }
+        .card-auth {
+            max-width: 520px;
+            width: 100%;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+        }
+    </style>
+</head>
+<body>
+    <div class="card card-auth p-4 p-md-5 text-center">
+        <div class="mb-3">
+            <img src="/static/bige_logo.png" alt="Big E Logo" height="64" class="rounded-circle shadow-sm border mb-3">
+            <div class="text-danger mb-2">
+                <i class="bi bi-shield-lock-fill" style="font-size: 3rem;"></i>
+            </div>
+            <h1 class="h3 fw-bold text-dark mb-1">Access Restricted</h1>
+            <p class="text-muted">Account Not Authorized</p>
+        </div>
+
+        <div class="mb-4">
+            <p class="text-secondary mb-2">The Google account you signed in with is not authorized to access Big E Inventory:</p>
+            <div class="p-2 bg-light border rounded fw-semibold text-break text-dark mb-3">
+                <i class="bi bi-person-x me-1 text-danger"></i> {{ email if email else 'Unknown Account' }}
+            </div>
+            
+            <div class="alert alert-warning text-start small mb-0">
+                <i class="bi bi-info-circle-fill me-1"></i>
+                If you need access to this system, please contact the administrator at
+                <a href="mailto:{{ admin_email }}" class="fw-bold text-dark">{{ admin_email }}</a>
+                to have your email added to the authorized users list.
+            </div>
+        </div>
+
+        <div class="d-grid gap-2">
+            <a href="/login" class="btn btn-primary btn-lg fw-bold d-flex align-items-center justify-content-center gap-2">
+                <i class="bi bi-google"></i>
+                <span>Sign In With Different Account</span>
+            </a>
+            <a href="/logout" class="btn btn-outline-secondary">
+                <i class="bi bi-box-arrow-left me-1"></i> Return to Login
+            </a>
+        </div>
+    </div>
+</body>
+</html>

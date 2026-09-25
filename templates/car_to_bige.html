@@ -549,8 +549,6 @@
 
             if (transfersToMake.length === 0) return;
 
-            if (!confirm(`Confirm transfer of ${totalCases} case(s) across ${transfersToMake.length} item(s) from Car to Big E?`)) return;
-
             const submitBtns = document.querySelectorAll('.submit-btn');
             submitBtns.forEach(btn => { btn.disabled = true; btn.innerText = "Submitting..."; });
 
@@ -643,8 +641,6 @@
         }
 
         async function undoLastChange() {
-            if (!confirm("Are you sure you want to undo the last transfer operation?")) return;
-            
             const undoBtn = document.getElementById('undo-btn');
             if (undoBtn) { undoBtn.disabled = true; undoBtn.innerText = 'Undoing...'; }
 

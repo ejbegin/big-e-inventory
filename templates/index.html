@@ -398,8 +398,6 @@
 
             const summaryText = `Transferred ${totalUnits} units (${mode === 'cases' ? qty + ' case(s)' : qty + ' unit(s)'}) of ${itemName} from ${fromName} to ${toName}`;
 
-            if (!confirm(`Confirm Transfer:\n${summaryText}?`)) return;
-
             showLoading(true);
             try {
                 const res = await fetch('/api/inventory/transfer', {
@@ -480,8 +478,6 @@
         }
 
         async function undoLastChange() {
-            if (!confirm("Are you sure you want to undo the last transfer operation?")) return;
-            
             const undoBtn = document.getElementById('index-undo-btn');
             if (undoBtn) { undoBtn.disabled = true; undoBtn.innerText = 'Undoing...'; }
 

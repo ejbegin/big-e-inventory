@@ -624,8 +624,6 @@
         }
 
         async function undoLastChange() {
-            if (!confirm("Are you sure you want to undo the last transfer operation?")) return;
-            
             const undoBtns = document.querySelectorAll('#undo-btn');
             undoBtns.forEach(b => { b.disabled = true; b.innerText = 'Undoing...'; });
 

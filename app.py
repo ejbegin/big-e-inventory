@@ -8,6 +8,8 @@ from square.requests.catalog_custom_attribute_definition import CatalogCustomAtt
 from dotenv import load_dotenv
 from authlib.integrations.flask_client import OAuth
 import datetime
+import json
+import uuid
 
 load_dotenv()
 
@@ -24,25 +26,107 @@ google = oauth.register(
     client_kwargs={'scope': 'openid email profile'}
 )
 
+USERS_FILE = 'allowed_users.json'
+ADMIN_EMAILS = [
+    os.environ.get('ADMIN_EMAIL', 'ejbegin@gmail.com').strip().lower()
+]
+
+def get_allowed_users():
+    settings = load_settings()
+    users = settings.get('_allowed_users')
+
+    # Fallback to local backup file if not present in settings
+    if users is None and os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, 'r') as f:
+                data = json.load(f)
+                users = data.get('allowed_users', [])
+        except Exception as e:
+            print(f"Error reading users file: {e}")
+
+    if not isinstance(users, list):
+        users = []
+
+    clean = []
+    # Always include primary admin(s)
+    for a in ADMIN_EMAILS:
+        if a and a not in clean:
+            clean.append(a)
+    for u in users:
+        if isinstance(u, str):
+            ue = u.strip().lower()
+            if ue and ue not in clean:
+                clean.append(ue)
+    return clean
+
+def save_allowed_users(user_list):
+    clean = []
+    for a in ADMIN_EMAILS:
+        if a and a not in clean:
+            clean.append(a)
+    for u in user_list:
+        if isinstance(u, str):
+            ue = u.strip().lower()
+            if ue and ue not in clean:
+                clean.append(ue)
+
+    # 1. Update settings dict (syncs with Square Catalog and item_settings.json)
+    settings = load_settings()
+    settings['_allowed_users'] = clean
+    save_settings(settings)
+
+    # 2. Local allowed_users.json backup
+    try:
+        with open(USERS_FILE, 'w') as f:
+            json.dump({"allowed_users": clean}, f, indent=4)
+    except Exception as e:
+        print(f"Error saving allowed_users.json: {e}")
+
+    return clean
+
 @app.before_request
 def require_login():
-    allowed_routes = ['login', 'authorize', 'static']
-    if request.endpoint not in allowed_routes and 'user' not in session:
-        return redirect(url_for('login'))
+    allowed_routes = ['login', 'authorize', 'static', 'access_denied']
+    if request.endpoint not in allowed_routes:
+        if 'user' not in session:
+            return redirect(url_for('login'))
+        user_email = (session.get('user', {}).get('email') or '').strip().lower()
+        allowed = get_allowed_users()
+        if allowed and user_email not in allowed:
+            session.pop('user', None)
+            return redirect(url_for('access_denied', email=user_email))
 
 @app.route('/login')
 def login():
     redirect_uri = url_for('authorize', _external=True)
-    return google.authorize_redirect(redirect_uri)
+    return google.authorize_redirect(redirect_uri, prompt='select_account')
 
 @app.route('/authorize')
 def authorize():
-    token = google.authorize_access_token()
-    user = token.get('userinfo')
+    try:
+        token = google.authorize_access_token()
+        user = token.get('userinfo')
+    except Exception as e:
+        print(f"OAuth authorize error: {e}")
+        return redirect(url_for('login'))
+
     if user:
-        session.permanent = True
-        session['user'] = user
+        email = (user.get('email') or '').strip().lower()
+        allowed = get_allowed_users()
+        if email and email in allowed:
+            session.permanent = True
+            session['user'] = user
+            return redirect('/')
+        else:
+            session.pop('user', None)
+            return redirect(url_for('access_denied', email=email))
     return redirect('/')
+
+@app.route('/access_denied')
+def access_denied():
+    email = request.args.get('email', '')
+    admin_email = os.environ.get('ADMIN_EMAIL', 'ejbegin@gmail.com')
+    return render_template('access_denied.html', email=email, admin_email=admin_email)
 
 @app.route('/logout')
 def logout():
@@ -162,9 +246,60 @@ def save_settings(settings):
 @app.route('/api/settings', methods=['GET', 'POST'])
 def api_settings():
     if request.method == 'POST':
-        save_settings(request.json)
+        incoming = request.json or {}
+        current = load_settings()
+        # Keep _allowed_users intact if not present in incoming settings
+        if '_allowed_users' not in incoming and '_allowed_users' in current:
+            incoming['_allowed_users'] = current['_allowed_users']
+        save_settings(incoming)
         return jsonify({"status": "success"})
     return jsonify(load_settings())
+
+@app.route('/api/users', methods=['GET', 'POST'])
+def api_users():
+    if request.method == 'POST':
+        data = request.json or {}
+        action = data.get('action')
+        users = get_allowed_users()
+
+        if action == 'add':
+            emails = data.get('emails') or ([data.get('email')] if data.get('email') else [])
+            added = []
+            for e in emails:
+                if isinstance(e, str) and '@' in e:
+                    clean_e = e.strip().lower()
+                    if clean_e not in users:
+                        users.append(clean_e)
+                        added.append(clean_e)
+            if not added:
+                return jsonify({"status": "error", "message": "No new valid email addresses to add."}), 400
+            saved = save_allowed_users(users)
+            return jsonify({"status": "success", "users": saved, "added": added})
+
+        elif action == 'remove':
+            email = (data.get('email') or '').strip().lower()
+            if email in ADMIN_EMAILS:
+                return jsonify({"status": "error", "message": "Cannot remove the primary administrator."}), 400
+            if email in users:
+                users.remove(email)
+                saved = save_allowed_users(users)
+                return jsonify({"status": "success", "users": saved})
+            return jsonify({"status": "error", "message": "User not found in authorized list."}), 404
+
+        elif 'users' in data:
+            saved = save_allowed_users(data.get('users', []))
+            return jsonify({"status": "success", "users": saved})
+
+        return jsonify({"status": "error", "message": "Invalid action."}), 400
+
+    users = get_allowed_users()
+    current_email = session.get('user', {}).get('email', '').strip().lower()
+    return jsonify({
+        "status": "success",
+        "users": users,
+        "admin_emails": ADMIN_EMAILS,
+        "current_user_email": current_email
+    })
 
 
 

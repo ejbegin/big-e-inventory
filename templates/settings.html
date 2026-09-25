@@ -13,6 +13,57 @@
         .nav-pills .nav-link:hover { background: rgba(255,255,255,0.15); color: #fff; }
         .nav-pills .nav-link.active { background-color: #0d6efd !important; color: #fff !important; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
 
+        .settings-nav-tabs {
+            border: 1px solid #e9ecef;
+        }
+        .settings-nav-tabs .nav-link {
+            color: #495057 !important;
+            border-radius: 6px;
+            padding: 10px 16px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+        .settings-nav-tabs .nav-link:hover {
+            background-color: #f1f3f5 !important;
+            color: #0d6efd !important;
+        }
+        .settings-nav-tabs .nav-link.active {
+            background-color: #0d6efd !important;
+            color: #ffffff !important;
+            box-shadow: 0 2px 6px rgba(13, 110, 253, 0.25) !important;
+        }
+
+        .user-card-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            border-bottom: 1px solid #f1f3f5;
+            transition: background-color 0.15s ease;
+        }
+        .user-card-item:last-child {
+            border-bottom: none;
+        }
+        .user-card-item:hover {
+            background-color: #f8fafc;
+        }
+        .user-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: #e7f1ff;
+            color: #0d6efd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
         .item-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
         .item-row:hover { background-color: #fcfcfc; }
         .item-name { flex: 2; font-weight: 600; }
@@ -67,57 +118,133 @@
     </nav>
 
     <div class="container mb-5" style="max-width: 950px;">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="h3 m-0 fw-bold"><i class="bi bi-gear-fill text-primary me-2"></i>Item Settings</h1>
-            <div>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="h3 m-0 fw-bold"><i class="bi bi-gear-fill text-primary me-2"></i>Settings</h1>
+            <div id="item-settings-top-actions">
                 <button class="btn btn-primary fw-bold shadow-sm" onclick="saveSettings()"><i class="bi bi-floppy me-1"></i> Save Settings</button>
             </div>
         </div>
         
         <div id="alert-container"></div>
 
-        <!-- Filter & Search Bar -->
-        <div class="card shadow-sm filter-card mb-4">
-            <div class="card-body">
-                <div class="row g-3 align-items-center">
-                    <div class="col-md-4">
-                        <label for="filter-category" class="form-label fw-bold mb-1">Category</label>
-                        <select id="filter-category" class="form-select" onchange="onCategoryChange()">
-                            <option value="">All Categories</option>
-                        </select>
+        <!-- Navigation Tabs -->
+        <ul class="nav settings-nav-tabs mb-4 p-1 bg-white border rounded-3 shadow-sm d-flex" id="settings-nav" role="tablist">
+            <li class="nav-item flex-fill text-center" role="presentation">
+                <button class="nav-link active w-100 d-flex align-items-center justify-content-center gap-2" id="tab-btn-items" onclick="switchSettingsTab('items')" type="button">
+                    <i class="bi bi-box-seam fs-5"></i>
+                    <span>Item Settings</span>
+                </button>
+            </li>
+            <li class="nav-item flex-fill text-center" role="presentation">
+                <button class="nav-link w-100 d-flex align-items-center justify-content-center gap-2" id="tab-btn-users" onclick="switchSettingsTab('users')" type="button">
+                    <i class="bi bi-people-fill fs-5"></i>
+                    <span>Authorized Users</span>
+                    <span class="badge bg-secondary rounded-pill ms-1" id="users-badge-count">1</span>
+                </button>
+            </li>
+        </ul>
+
+        <!-- PANE: Item Settings -->
+        <div id="pane-items">
+            <!-- Filter & Search Bar -->
+            <div class="card shadow-sm filter-card mb-4">
+                <div class="card-body">
+                    <div class="row g-3 align-items-center">
+                        <div class="col-md-4">
+                            <label for="filter-category" class="form-label fw-bold mb-1">Category</label>
+                            <select id="filter-category" class="form-select" onchange="onCategoryChange()">
+                                <option value="">All Categories</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="filter-subcategory" class="form-label fw-bold mb-1">Sub-Category</label>
+                            <select id="filter-subcategory" class="form-select" onchange="applyFilters()">
+                                <option value="">All Sub-Categories</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="filter-search" class="form-label fw-bold mb-1">Search Items</label>
+                            <input type="text" id="filter-search" class="form-control" placeholder="Search by name..." oninput="applyFilters()">
+                        </div>
                     </div>
-                    <div class="col-md-4">
-                        <label for="filter-subcategory" class="form-label fw-bold mb-1">Sub-Category</label>
-                        <select id="filter-subcategory" class="form-select" onchange="applyFilters()">
-                            <option value="">All Sub-Categories</option>
-                        </select>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between fw-bold mb-2 pb-2 border-bottom">
+                        <div style="flex: 2">Item</div>
+                        <div style="flex: 1; padding: 0 10px; max-width: 130px;">Case Size</div>
+                        <div style="flex: 1; text-align: center; max-width: 140px;">
+                            <div>Visible on Tally</div>
+                            <div class="mt-1 fw-normal">
+                                <button class="btn btn-link p-0 text-decoration-none" style="font-size: 0.78rem;" onclick="toggleSelectAllFiltered(true)">Select All</button>
+                                <span class="text-muted" style="font-size: 0.78rem;">|</span>
+                                <button class="btn btn-link p-0 text-decoration-none" style="font-size: 0.78rem;" onclick="toggleSelectAllFiltered(false)">None</button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-4">
-                        <label for="filter-search" class="form-label fw-bold mb-1">Search Items</label>
-                        <input type="text" id="filter-search" class="form-control" placeholder="Search by name..." oninput="applyFilters()">
-                    </div>
+                    
+                    <div id="items-container">Loading catalog items...</div>
+                    
+                    <button class="btn btn-primary w-100 mt-4 save-btn-bottom" onclick="saveSettings()">Save Settings</button>
                 </div>
             </div>
         </div>
 
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between fw-bold mb-2 pb-2 border-bottom">
-                    <div style="flex: 2">Item</div>
-                    <div style="flex: 1; padding: 0 10px; max-width: 130px;">Case Size</div>
-                    <div style="flex: 1; text-align: center; max-width: 140px;">
-                        <div>Visible on Tally</div>
-                        <div class="mt-1 fw-normal">
-                            <button class="btn btn-link p-0 text-decoration-none" style="font-size: 0.78rem;" onclick="toggleSelectAllFiltered(true)">Select All</button>
-                            <span class="text-muted" style="font-size: 0.78rem;">|</span>
-                            <button class="btn btn-link p-0 text-decoration-none" style="font-size: 0.78rem;" onclick="toggleSelectAllFiltered(false)">None</button>
+        <!-- PANE: Authorized Users -->
+        <div id="pane-users" style="display: none;">
+            <!-- Add User Card -->
+            <div class="card shadow-sm filter-card mb-4">
+                <div class="card-body p-4">
+                    <div class="mb-3">
+                        <h5 class="fw-bold mb-1"><i class="bi bi-person-plus-fill text-primary me-2"></i>Add Authorized User</h5>
+                        <p class="text-muted small mb-0">Allow other team members to access Big E Inventory with their Google account.</p>
+                    </div>
+                    <form id="add-user-form" onsubmit="event.preventDefault(); addUser();">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-9">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white text-muted"><i class="bi bi-envelope-at-fill"></i></span>
+                                    <input type="text" id="new-user-email" class="form-control form-control-lg" placeholder="e.g. colleague@gmail.com" autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <button type="submit" id="btn-add-user" class="btn btn-primary btn-lg w-100 fw-bold">
+                                    <i class="bi bi-plus-lg me-1"></i> Add User
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-text text-muted mt-2">
+                            <i class="bi bi-info-circle me-1"></i> You can add a single email or multiple emails separated by commas or spaces.
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Current Authorized Users List Card -->
+            <div class="card shadow-sm filter-card">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="fw-bold mb-0"><i class="bi bi-shield-check text-success me-2"></i>Authorized Accounts</h5>
+                        <div class="text-muted small">Only these Google accounts can log into this application</div>
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadUsers()" title="Refresh users list">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div id="users-list-container">
+                        <div class="p-4 text-center text-muted">
+                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                            Loading authorized users...
                         </div>
                     </div>
                 </div>
-                
-                <div id="items-container">Loading catalog items...</div>
-                
-                <button class="btn btn-primary w-100 mt-4 save-btn-bottom" onclick="saveSettings()">Save Settings</button>
+                <div class="card-footer bg-light py-3 text-muted small border-top">
+                    <i class="bi bi-shield-lock-fill text-primary me-1"></i>
+                    Settings sync automatically to Square Catalog and will persist across deployments.
+                </div>
             </div>
         </div>
     </div>
@@ -411,7 +538,204 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>`;
             window.scrollTo(0, 0);
-            setTimeout(() => { alertContainer.innerHTML = ''; }, 2000);
+            setTimeout(() => { alertContainer.innerHTML = ''; }, 3000);
+        }
+
+        // ==========================================
+        // Tab & User Management Logic
+        // ==========================================
+        let authorizedUsersData = { users: [], admin_emails: [], current_user_email: '' };
+
+        function switchSettingsTab(tab) {
+            const paneItems = document.getElementById('pane-items');
+            const paneUsers = document.getElementById('pane-users');
+            const btnItems = document.getElementById('tab-btn-items');
+            const btnUsers = document.getElementById('tab-btn-users');
+            const topSaveBtn = document.getElementById('item-settings-top-actions');
+
+            if (tab === 'users') {
+                paneItems.style.display = 'none';
+                paneUsers.style.display = 'block';
+                btnItems.classList.remove('active');
+                btnUsers.classList.add('active');
+                if (topSaveBtn) topSaveBtn.style.display = 'none';
+                window.location.hash = 'users';
+                loadUsers();
+            } else {
+                paneItems.style.display = 'block';
+                paneUsers.style.display = 'none';
+                btnItems.classList.add('active');
+                btnUsers.classList.remove('active');
+                if (topSaveBtn) topSaveBtn.style.display = 'block';
+                window.location.hash = 'items';
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                const res = await fetch('/api/users');
+                const data = await res.json();
+                if (data.status === 'success') {
+                    authorizedUsersData = data;
+                    renderUsers();
+                    updateUserBadgeCount();
+                } else {
+                    showAlert("Failed to load users: " + (data.message || "Unknown error"), "danger");
+                }
+            } catch (err) {
+                console.error("Error loading users:", err);
+                showAlert("Failed to connect to user service.", "danger");
+            }
+        }
+
+        function updateUserBadgeCount() {
+            const badge = document.getElementById('users-badge-count');
+            if (badge) {
+                badge.textContent = (authorizedUsersData.users || []).length;
+            }
+        }
+
+        function renderUsers() {
+            const container = document.getElementById('users-list-container');
+            if (!container) return;
+
+            const users = authorizedUsersData.users || [];
+            const adminEmails = (authorizedUsersData.admin_emails || []).map(e => e.toLowerCase());
+            const currentUser = (authorizedUsersData.current_user_email || '').toLowerCase();
+
+            if (users.length === 0) {
+                container.innerHTML = '<div class="p-4 text-center text-muted">No authorized users found.</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            users.forEach(userEmail => {
+                const emailLower = userEmail.toLowerCase();
+                const isAdmin = adminEmails.includes(emailLower);
+                const isSelf = (emailLower === currentUser);
+                const initial = (userEmail[0] || 'U').toUpperCase();
+
+                const item = document.createElement('div');
+                item.className = 'user-card-item';
+                item.innerHTML = `
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="user-avatar shadow-sm">
+                            ${initial}
+                        </div>
+                        <div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <span class="fw-bold text-dark fs-6">${userEmail}</span>
+                                ${isAdmin ? '<span class="badge bg-primary text-white"><i class="bi bi-shield-fill-check me-1"></i>Primary Admin</span>' : ''}
+                                ${isSelf ? '<span class="badge bg-info text-dark"><i class="bi bi-person-check-fill me-1"></i>You</span>' : ''}
+                            </div>
+                            <div class="text-muted small">Google Account &bull; Full Access</div>
+                        </div>
+                    </div>
+                    <div>
+                        ${isAdmin ? `
+                            <span class="text-muted small fst-italic me-2 d-none d-sm-inline">Primary Admin (Protected)</span>
+                        ` : `
+                            <button class="btn btn-outline-danger btn-sm fw-semibold" onclick="confirmRemoveUser('${userEmail}')" title="Revoke access for ${userEmail}">
+                                <i class="bi bi-trash3 me-1"></i> <span class="d-none d-sm-inline">Remove</span>
+                            </button>
+                        `}
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        async function addUser() {
+            const emailInput = document.getElementById('new-user-email');
+            const rawVal = emailInput.value.trim();
+            if (!rawVal) return;
+
+            // Support comma or space separated emails
+            const rawTokens = rawVal.split(/[\s,]+/);
+            const emailsToAdd = [];
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+            for (const token of rawTokens) {
+                const cleaned = token.trim().toLowerCase();
+                if (cleaned) {
+                    if (!emailRegex.test(cleaned)) {
+                        showAlert(`"${cleaned}" is not a valid email address.`, "warning");
+                        return;
+                    }
+                    emailsToAdd.push(cleaned);
+                }
+            }
+
+            if (emailsToAdd.length === 0) return;
+
+            const btn = document.getElementById('btn-add-user');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Adding...';
+
+            try {
+                const res = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'add',
+                        emails: emailsToAdd
+                    })
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    showAlert(`Successfully authorized: ${data.added.join(', ')}`, "success");
+                    emailInput.value = '';
+                    authorizedUsersData.users = data.users;
+                    renderUsers();
+                    updateUserBadgeCount();
+                } else {
+                    showAlert(data.message || "Failed to add user.", "danger");
+                }
+            } catch (err) {
+                console.error("Error adding user:", err);
+                showAlert("Failed to connect to server.", "danger");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+            }
+        }
+
+        async function confirmRemoveUser(email) {
+            if (!confirm(`Are you sure you want to revoke access for ${email}? They will immediately lose access to Big E Inventory.`)) {
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'remove',
+                        email: email
+                    })
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    showAlert(`Access revoked for ${email}.`, "success");
+                    authorizedUsersData.users = data.users;
+                    renderUsers();
+                    updateUserBadgeCount();
+                } else {
+                    showAlert(data.message || "Failed to remove user.", "danger");
+                }
+            } catch (err) {
+                console.error("Error removing user:", err);
+                showAlert("Failed to connect to server.", "danger");
+            }
+        }
+
+        async function init() {
+            loadUsers();
+            if (window.location.hash === '#users') {
+                switchSettingsTab('users');
+            }
+            await refreshCatalog(false);
         }
 
         init();
