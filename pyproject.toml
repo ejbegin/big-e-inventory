@@ -1,0 +1,15 @@
+[project]
+name = "big-e-inventory"
+version = "0.1.0"
+description = "Big E Inventory Management Application"
+dependencies = [
+    "flask",
+    "squareup",
+    "python-dotenv",
+    "authlib",
+    "requests"
+]
+
+[tool.pyright]
+venvPath = "."
+venv = "venv"

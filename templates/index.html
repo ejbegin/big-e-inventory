@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Big E Inventory Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        .location-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 15px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 2px solid #e9ecef;
+            z-index: 2;
+            position: relative;
+        }
+        .transfer-arrow {
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .connector-line {
+            position: absolute;
+            top: 40px;
+            left: 10%;
+            right: 10%;
+            border-top: 3px dashed #dee2e6;
+            z-index: 1;
+        }
+        .qty-badge {
+            font-size: 1rem;
+            padding: 0.5em 1em;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container mt-5 mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="m-0 fw-bold">Inventory Transfer</h1>
+            <div>
+                <button class="btn btn-sm btn-outline-primary me-2 mb-2" onclick="manualRefresh()" title="Sync with Square">
+                    <i class="bi bi-arrow-clockwise"></i> Sync Square
+                </button>
+                <a href="/settings" class="btn btn-sm btn-outline-secondary me-2 mb-2">Settings</a>
+                <a href="/tally" class="btn btn-sm btn-primary shadow-sm mb-2">Quick Case Transfer</a>
+                <a href="/warehouse_to_car" class="btn btn-sm btn-info text-white shadow-sm mb-2">Whse to Car</a>
+                <a href="/car_to_warehouse" class="btn btn-sm btn-info text-white shadow-sm mb-2">Car to Whse</a>
+            </div>
+        </div>
+
+        <div id="alert-container"></div>
+
+        <div class="card shadow-sm mb-4 border-0">
+            <div class="card-body p-4">
+                <div class="row align-items-center mb-5">
+                    <div class="col-md-8 mx-auto">
+                        <label for="item" class="form-label fw-bold">Select Item to Manage</label>
+                        <select class="form-select form-select-lg" id="item" required onchange="onItemSelected()">
+                            <option value="">Loading catalog...</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Transfer quantity control -->
+                <div class="d-flex justify-content-center align-items-center mb-4" id="transfer-controls" style="display: none !important;">
+                    <label class="fw-bold me-3 text-muted">Cases to Transfer:</label>
+                    <div class="input-group shadow-sm" style="width: 160px; border-radius: 8px; overflow: hidden;">
+                        <button class="btn btn-light border" type="button" onclick="changeTransferQty(-1)"><i class="bi bi-dash-lg"></i></button>
+                        <input type="number" id="transfer-qty" class="form-control text-center fw-bold border-start-0 border-end-0" value="1" min="1">
+                        <button class="btn btn-light border" type="button" onclick="changeTransferQty(1)"><i class="bi bi-plus-lg"></i></button>
+                    </div>
+                </div>
+
+                <!-- Visual locations layout -->
+                <div class="position-relative mt-4 pt-3 pb-2" style="opacity: 0.5; pointer-events: none; transition: opacity 0.3s;" id="visual-layout">
+                    <div class="connector-line"></div>
+                    
+                    <div class="d-flex justify-content-between align-items-center px-2">
+                        
+                        <!-- Warehouse -->
+                        <div class="text-center" style="flex: 1; z-index: 2;">
+                            <div class="location-icon">
+                                <i class="bi bi-house-door-fill text-primary" style="font-size: 2.5rem;"></i>
+                            </div>
+                            <h5 class="fw-bold mb-2">Warehouse</h5>
+                            <div class="badge bg-secondary qty-badge shadow-sm" id="qty-warehouse">0</div>
+                            <div class="text-muted small mt-1 case-breakdown" id="breakdown-warehouse"></div>
+                        </div>
+                        
+                        <!-- Arrow Warehouse <-> Car -->
+                        <div class="d-flex flex-column align-items-center bg-white px-2 rounded-pill" style="z-index: 2;">
+                            <button class="btn btn-primary rounded-circle transfer-arrow mb-2" onclick="doTransfer('Warehouse', 'Car')" title="Transfer to Car">
+                                <i class="bi bi-arrow-right"></i>
+                            </button>
+                            <button class="btn btn-primary rounded-circle transfer-arrow" onclick="doTransfer('Car', 'Warehouse')" title="Transfer to Warehouse">
+                                <i class="bi bi-arrow-left"></i>
+                            </button>
+                        </div>
+
+                        <!-- Car -->
+                        <div class="text-center" style="flex: 1; z-index: 2;">
+                            <div class="location-icon">
+                                <i class="bi bi-truck text-primary" style="font-size: 2.5rem;"></i>
+                            </div>
+                            <h5 class="fw-bold mb-2">Car</h5>
+                            <div class="badge bg-secondary qty-badge shadow-sm" id="qty-car">0</div>
+                            <div class="text-muted small mt-1 case-breakdown" id="breakdown-car"></div>
+                        </div>
+                        
+                        <!-- Arrow Car <-> Big E -->
+                        <div class="d-flex flex-column align-items-center bg-white px-2 rounded-pill" style="z-index: 2;">
+                            <button class="btn btn-primary rounded-circle transfer-arrow mb-2" onclick="doTransfer('Car', 'Big E')" title="Transfer to Big E">
+                                <i class="bi bi-arrow-right"></i>
+                            </button>
+                            <button class="btn btn-primary rounded-circle transfer-arrow" onclick="doTransfer('Big E', 'Car')" title="Transfer to Car">
+                                <i class="bi bi-arrow-left"></i>
+                            </button>
+                        </div>
+
+                        <!-- Big E -->
+                        <div class="text-center" style="flex: 1; z-index: 2;">
+                            <div class="location-icon" style="overflow: hidden; padding: 10px;">
+                                <img src="/static/bige_logo.png" id="bige-logo" alt="Big E" style="width: 100%; height: 100%; object-fit: contain;">
+                            </div>
+                            <h5 class="fw-bold mb-2">Big E</h5>
+                            <div class="badge bg-secondary qty-badge shadow-sm" id="qty-bige">0</div>
+                            <div class="text-muted small mt-1 case-breakdown" id="breakdown-bige"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Transfer History Card -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold m-0"><i class="bi bi-clock-history me-2"></i>Transfer History</h5>
+                    <button id="index-undo-btn" class="btn btn-warning fw-bold shadow-sm" onclick="undoLastChange()" disabled>
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Undo Last Change
+                    </button>
+                </div>
+                <div id="index-history-alert"></div>
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 25%;">Time</th>
+                                <th>Summary of Changes</th>
+                                <th style="width: 20%; text-align: center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="index-history-tbody">
+                            <tr><td colspan="3" class="text-center py-3 text-muted">Loading history...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spinner overlay for loading -->
+    <div id="loading-overlay" class="position-fixed top-0 start-0 w-100 h-100 bg-white bg-opacity-75 d-flex justify-content-center align-items-center d-none" style="z-index: 1050;">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <script>
+        let locations = [];
+        let items = [];
+        let inventoryCounts = [];
+        let settings = {};
+
+        const locationMap = {
+            'Warehouse': null,
+            'Car': null,
+            'Big E': null
+        };
+
+        async function init(forceCatalogRefresh = false) {
+            showLoading(true);
+            try {
+                await Promise.all([
+                    fetchLocations(),
+                    fetchCatalog(forceCatalogRefresh),
+                    fetchSettings()
+                ]);
+                await fetchInventory(); // Depends on catalog if we were to filter, but we fetch all
+                onItemSelected();
+                fetchHistory();
+            } catch (err) {
+                console.error("Init error", err);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function manualRefresh() {
+            showAlert("Syncing catalog and inventory with Square...", "info");
+            await init(true);
+            showAlert("Inventory successfully synced with Square!", "success");
+        }
+
+        async function fetchLocations() {
+            const res = await fetch('/api/locations');
+            const data = await res.json();
+            if (data.locations) {
+                locations = data.locations;
+                // Map names to IDs
+                locations.forEach(loc => {
+                    if (loc.name.toLowerCase().includes('warehouse')) locationMap['Warehouse'] = loc.id;
+                    if (loc.name.toLowerCase() === 'car' || loc.name.toLowerCase().includes('van')) locationMap['Car'] = loc.id;
+                    if (loc.name.toLowerCase().includes('big e')) {
+                        locationMap['Big E'] = loc.id;
+                    }
+                });
+            }
+        }
+
+        async function fetchCatalog(forceRefresh = false) {
+            const url = forceRefresh ? '/api/catalog?refresh=true' : '/api/catalog';
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.objects) {
+                items = data.objects;
+                const itemSelect = document.getElementById('item');
+                itemSelect.innerHTML = '<option value="">-- Select an item to manage --</option>';
+                
+                // Extract items and sort alphabetically
+                let options = [];
+                items.forEach(obj => {
+                    if (obj.item_data && obj.item_data.variations) {
+                        obj.item_data.variations.forEach(variation => {
+                            options.push({
+                                id: variation.id,
+                                name: `${obj.item_data.name} - ${variation.item_variation_data.name}`
+                            });
+                        });
+                    }
+                });
+                
+                options.sort((a, b) => a.name.localeCompare(b.name)).forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.id;
+                    option.textContent = opt.name;
+                    itemSelect.appendChild(option);
+                });
+            }
+        }
+
+        async function fetchSettings() {
+            const res = await fetch('/api/settings');
+            settings = await res.json();
+        }
+
+        async function fetchInventory() {
+            const res = await fetch('/api/inventory/counts');
+            const data = await res.json();
+            if (data.counts) {
+                inventoryCounts = data.counts;
+            } else {
+                inventoryCounts = [];
+            }
+        }
+
+        function onItemSelected() {
+            const itemId = document.getElementById('item').value;
+            const layout = document.getElementById('visual-layout');
+            const controls = document.getElementById('transfer-controls');
+            
+            if (!itemId) {
+                layout.style.opacity = '0.5';
+                layout.style.pointerEvents = 'none';
+                controls.style.setProperty('display', 'none', 'important');
+                updateBadges(null);
+                return;
+            }
+            
+            layout.style.opacity = '1';
+            layout.style.pointerEvents = 'auto';
+            controls.style.setProperty('display', 'flex', 'important');
+            updateBadges(itemId);
+        }
+
+        function updateBadges(itemId) {
+            ['Warehouse', 'Car', 'Big E'].forEach(locName => {
+                const locId = locationMap[locName];
+                let qty = 0;
+                
+                if (itemId && locId) {
+                    const countObj = inventoryCounts.find(c => c.catalog_object_id === itemId && c.location_id === locId && c.state === 'IN_STOCK');
+                    if (countObj) qty = parseInt(countObj.quantity, 10) || 0;
+                }
+                
+                const badgeId = `qty-${locName.toLowerCase().replace(' ', '')}`;
+                const breakdownId = `breakdown-${locName.toLowerCase().replace(' ', '')}`;
+                
+                document.getElementById(badgeId).textContent = qty;
+                
+                if (itemId) {
+                    const caseSize = (settings[itemId] && settings[itemId].case_size) ? settings[itemId].case_size : 12;
+                    const cases = Math.floor(qty / caseSize);
+                    const units = qty % caseSize;
+                    
+                    let text = [];
+                    if (cases > 0) text.push(`${cases} case${cases > 1 ? 's' : ''}`);
+                    if (units > 0 || qty === 0) text.push(`${units} unit${units !== 1 ? 's' : ''}`);
+                    
+                    document.getElementById(breakdownId).textContent = `(${text.join(', ')})`;
+                } else {
+                    document.getElementById(breakdownId).textContent = '';
+                }
+            });
+        }
+
+        function changeTransferQty(delta) {
+            const input = document.getElementById('transfer-qty');
+            let val = parseInt(input.value) || 1;
+            val += delta;
+            if (val < 1) val = 1;
+            input.value = val;
+        }
+
+        function showLoading(show) {
+            const el = document.getElementById('loading-overlay');
+            if (show) el.classList.remove('d-none');
+            else el.classList.add('d-none');
+        }
+
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alert-container');
+            alertContainer.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show shadow-sm" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>`;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setTimeout(() => { alertContainer.innerHTML = ''; }, 5000);
+        }
+
+        async function doTransfer(fromLocName, toLocName) {
+            const itemId = document.getElementById('item').value;
+            if (!itemId) {
+                showAlert("Please select an item first.", "warning");
+                return;
+            }
+
+            const fromId = locationMap[fromLocName];
+            const toId = locationMap[toLocName];
+            
+            if (!fromId || !toId) {
+                showAlert("Location configuration error.", "danger");
+                return;
+            }
+
+            const caseQty = parseInt(document.getElementById('transfer-qty').value) || 1;
+            const caseSize = (settings[itemId] && settings[itemId].case_size) ? settings[itemId].case_size : 12;
+            const totalUnits = caseQty * caseSize;
+
+            // Check current stock to prevent negative inventory
+            const countObj = inventoryCounts.find(c => c.catalog_object_id === itemId && c.location_id === fromId && c.state === 'IN_STOCK');
+            const availableUnits = countObj ? (parseInt(countObj.quantity, 10) || 0) : 0;
+            if (availableUnits < totalUnits) {
+                showAlert(`Cannot transfer: ${fromLocName} only has ${availableUnits} unit(s) available (${Math.floor(availableUnits / caseSize)} full case(s)).`, "danger");
+                return;
+            }
+
+            const selectElem = document.getElementById('item');
+            const itemName = selectElem ? selectElem.options[selectElem.selectedIndex].text : itemId;
+            const batchId = 'batch-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+            const summaryText = `Transferred ${caseQty} case(s) (${totalUnits} units) of ${itemName} from ${fromLocName} to ${toLocName}`;
+
+            if (confirm(`Transfer ${caseQty} case(s) (${totalUnits} units) from ${fromLocName} to ${toLocName}?`)) {
+                showLoading(true);
+                try {
+                    const res = await fetch('/api/inventory/transfer', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            from_location_id: fromId,
+                            to_location_id: toId,
+                            catalog_object_id: itemId,
+                            quantity: totalUnits,
+                            batch_id: batchId,
+                            item_name: itemName,
+                            from_location_name: fromLocName,
+                            to_location_name: toLocName,
+                            summary: summaryText
+                        })
+                    });
+                    
+                    const data = await res.json();
+                    
+                    if (res.ok) {
+                        showAlert(`Successfully transferred ${caseQty} case(s) to ${toLocName}.`, "success");
+                        await fetchInventory();
+                        updateBadges(itemId);
+                        fetchHistory();
+                    } else {
+                        showAlert("Error: " + JSON.stringify(data.error), "danger");
+                    }
+                } catch (err) {
+                    showAlert("Request failed.", "danger");
+                    console.error(err);
+                } finally {
+                    showLoading(false);
+                }
+            }
+        }
+
+        async function fetchHistory() {
+            try {
+                const res = await fetch('/api/history');
+                const data = await res.json();
+                const history = data.history || [];
+
+                const activeEntries = history.filter(h => h.status === 'completed');
+                const undoBtns = document.querySelectorAll('#index-undo-btn, #undo-btn');
+                undoBtns.forEach(b => {
+                    b.disabled = activeEntries.length === 0;
+                    b.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i> Undo Last Change';
+                });
+
+                const tbodies = document.querySelectorAll('#index-history-tbody, #history-tbody');
+                if (tbodies.length === 0) return;
+
+                let html = '';
+                if (history.length === 0) {
+                    html = '<tr><td colspan="3" class="text-center py-4 text-muted">No transfer history recorded yet.</td></tr>';
+                } else {
+                    history.forEach(item => {
+                        const dt = new Date(item.timestamp);
+                        const timeStr = isNaN(dt) ? item.timestamp : dt.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                        const isReverted = item.status === 'reverted';
+                        const badgeHtml = isReverted 
+                            ? '<span class="badge bg-secondary">Undone</span>' 
+                            : '<span class="badge bg-success">Completed</span>';
+                        
+                        const rowStyle = isReverted ? 'style="opacity: 0.6; background-color: #fcfcfc;"' : '';
+                        const textStyle = isReverted ? 'text-decoration-line-through text-muted' : 'fw-semibold';
+
+                        html += `<tr ${rowStyle}>
+                            <td class="small text-muted">${timeStr}</td>
+                            <td class="${textStyle}">${item.summary || 'Transfer operation'}</td>
+                            <td class="text-center">${badgeHtml}</td>
+                        </tr>`;
+                    });
+                }
+
+                tbodies.forEach(tb => { tb.innerHTML = html; });
+            } catch (err) {
+                console.error("Error fetching history:", err);
+            }
+        }
+
+        async function undoLastChange() {
+            if (!confirm("Are you sure you want to undo the last transfer operation?")) return;
+            
+            const undoBtns = document.querySelectorAll('#index-undo-btn, #undo-btn');
+            undoBtns.forEach(b => { b.disabled = true; b.innerText = 'Undoing...'; });
+
+            try {
+                const res = await fetch('/api/history/undo', { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.error || "Undo failed");
+                }
+
+                showAlert("Undo Successful: " + (data.message || "Reverted last change"), "success");
+
+                const indexAlert = document.getElementById('index-history-alert');
+                if (indexAlert) {
+                    indexAlert.innerHTML = `<div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+                        ${data.message || 'Undo successful!'}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>`;
+                }
+
+                await fetchInventory();
+                const selectedItemId = document.getElementById('item').value;
+                if (selectedItemId) updateBadges(selectedItemId);
+                await fetchHistory();
+            } catch (err) {
+                showAlert("Failed to undo: " + err.message, "danger");
+                const indexAlert = document.getElementById('index-history-alert');
+                if (indexAlert) {
+                    indexAlert.innerHTML = `<div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+                        Failed to undo: ${err.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>`;
+                }
+                await fetchHistory();
+            }
+        }
+
+        // Run
+        init();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tally Settings</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .item-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .item-row:hover { background-color: #fcfcfc; }
+        .item-name { flex: 2; font-weight: 600; }
+        .item-meta { font-size: 0.82rem; color: #6c757d; font-weight: normal; margin-top: 2px; }
+        .item-case { flex: 1; padding: 0 10px; max-width: 130px; }
+        .item-visible { flex: 1; text-align: center; max-width: 140px; }
+        .filter-card { background: #fff; border-radius: 8px; border: 1px solid #e9ecef; }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container mt-4 mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2 m-0">Settings</h1>
+            <div>
+                <button class="btn btn-primary me-2" onclick="saveSettings()">Save Settings</button>
+                <button class="btn btn-outline-primary me-2" onclick="refreshCatalog(true)">Sync Catalog</button>
+                <a href="/" class="btn btn-outline-secondary">Back</a>
+            </div>
+        </div>
+        
+        <div id="alert-container"></div>
+
+        <!-- Filter & Search Bar -->
+        <div class="card shadow-sm filter-card mb-4">
+            <div class="card-body">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-4">
+                        <label for="filter-category" class="form-label fw-bold mb-1">Category</label>
+                        <select id="filter-category" class="form-select" onchange="onCategoryChange()">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="filter-subcategory" class="form-label fw-bold mb-1">Sub-Category</label>
+                        <select id="filter-subcategory" class="form-select" onchange="applyFilters()">
+                            <option value="">All Sub-Categories</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="filter-search" class="form-label fw-bold mb-1">Search Items</label>
+                        <input type="text" id="filter-search" class="form-control" placeholder="Search by name..." oninput="applyFilters()">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between fw-bold mb-2 pb-2 border-bottom">
+                    <div style="flex: 2">Item</div>
+                    <div style="flex: 1; padding: 0 10px; max-width: 130px;">Case Size</div>
+                    <div style="flex: 1; text-align: center; max-width: 140px;">
+                        <div>Visible on Tally</div>
+                        <div class="mt-1 fw-normal">
+                            <button class="btn btn-link p-0 text-decoration-none" style="font-size: 0.78rem;" onclick="toggleSelectAllFiltered(true)">Select All</button>
+                            <span class="text-muted" style="font-size: 0.78rem;">|</span>
+                            <button class="btn btn-link p-0 text-decoration-none" style="font-size: 0.78rem;" onclick="toggleSelectAllFiltered(false)">None</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="items-container">Loading catalog items...</div>
+                
+                <button class="btn btn-primary w-100 mt-4 save-btn-bottom" onclick="saveSettings()">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let rawObjects = [];
+        let flatItems = [];
+        let currentFilteredItems = [];
+        let categoriesMap = {}; // id -> category obj
+        let settings = {};
+
+        async function init() {
+            await refreshCatalog(false);
+        }
+
+        async function refreshCatalog(forceRefresh = false) {
+            try {
+                const url = forceRefresh ? '/api/catalog?refresh=true' : '/api/catalog';
+                if (forceRefresh) showAlert("Syncing catalog with Square...", "info");
+                const catRes = await fetch(url);
+                const catData = await catRes.json();
+                rawObjects = catData.objects || [];
+
+                // Fetch settings
+                const setRes = await fetch('/api/settings');
+                settings = await setRes.json();
+
+                processCatalogData();
+                populateCategoryDropdowns();
+                applyFilters();
+                if (forceRefresh) showAlert("Catalog synced successfully!", "success");
+            } catch (err) {
+                showAlert("Failed to load catalog data.", "danger");
+                console.error(err);
+            }
+        }
+
+        function processCatalogData() {
+            categoriesMap = {};
+            const itemObjects = [];
+
+            // 1. Process Categories
+            rawObjects.forEach(obj => {
+                if (obj.type === 'CATEGORY' && obj.category_data) {
+                    let pId = null;
+                    if (obj.category_data.parent_category && obj.category_data.parent_category.id) {
+                        pId = obj.category_data.parent_category.id;
+                    } else if (obj.category_data.parent_category_id) {
+                        pId = obj.category_data.parent_category_id;
+                    } else if (obj.category_data.root_category) {
+                        pId = obj.category_data.root_category;
+                    }
+
+                    categoriesMap[obj.id] = {
+                        id: obj.id,
+                        name: obj.category_data.name || 'Uncategorized',
+                        parent_id: pId
+                    };
+                } else if (obj.type === 'ITEM' && obj.item_data) {
+                    itemObjects.push(obj);
+                }
+            });
+
+            // 2. Flatten Items and Variations
+            flatItems = [];
+            itemObjects.forEach(obj => {
+                if (obj.item_data && obj.item_data.variations) {
+                    let categoryName = 'Uncategorized';
+                    let subCategoryName = '';
+
+                    // Collect all category chains for this item
+                    const catList = [...(obj.item_data.categories || [])];
+                    if (obj.item_data.reporting_category && obj.item_data.reporting_category.id) {
+                        catList.unshift(obj.item_data.reporting_category);
+                    }
+                    if (obj.item_data.category_id) {
+                        catList.unshift({ id: obj.item_data.category_id });
+                    }
+
+                    let bestChain = [];
+                    for (const catRef of catList) {
+                        if (catRef.id && categoriesMap[catRef.id]) {
+                            const catObj = categoriesMap[catRef.id];
+                            let curr = catObj;
+                            const chain = [curr.name];
+                            while (curr.parent_id && categoriesMap[curr.parent_id]) {
+                                curr = categoriesMap[curr.parent_id];
+                                chain.unshift(curr.name);
+                            }
+
+                            // Prioritize chains with more than 1 level (parent + subcategory), or root Big E
+                            if (chain.length > bestChain.length || (chain[0] === 'Big E' && bestChain[0] !== 'Big E')) {
+                                bestChain = chain;
+                            }
+                        }
+                    }
+
+                    if (bestChain.length > 0) {
+                        categoryName = bestChain[0];
+                        if (bestChain.length > 1) {
+                            subCategoryName = bestChain.slice(1).join(' › ');
+                        }
+                    }
+
+                    obj.item_data.variations.forEach(variation => {
+                        const varName = variation.item_variation_data ? variation.item_variation_data.name : '';
+                        const fullName = `${obj.item_data.name} ${varName ? '- ' + varName : ''}`.trim();
+                        
+                        const effectiveSubCat = subCategoryName || (varName && varName !== 'Regular' ? varName : '');
+
+                        flatItems.push({
+                            id: variation.id,
+                            name: fullName,
+                            itemName: obj.item_data.name,
+                            variationName: varName,
+                            categoryName: categoryName,
+                            subCategoryName: effectiveSubCat
+                        });
+                    });
+                }
+            });
+
+            // 3. Sort flatItems Alphabetically
+            flatItems.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+        }
+
+        function populateCategoryDropdowns() {
+            const catSelect = document.getElementById('filter-category');
+            catSelect.innerHTML = '<option value="">All Categories</option>';
+
+            const uniqueCategories = [...new Set(flatItems.map(i => i.categoryName))].sort();
+            uniqueCategories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = cat;
+                catSelect.appendChild(opt);
+            });
+
+            populateSubCategoryDropdown('');
+        }
+
+        function onCategoryChange() {
+            const selectedCat = document.getElementById('filter-category').value;
+            populateSubCategoryDropdown(selectedCat);
+            applyFilters();
+        }
+
+        function populateSubCategoryDropdown(categoryFilter) {
+            const subCatSelect = document.getElementById('filter-subcategory');
+            subCatSelect.innerHTML = '<option value="">All Sub-Categories</option>';
+
+            let itemsToScan = flatItems;
+            if (categoryFilter) {
+                itemsToScan = flatItems.filter(i => i.categoryName === categoryFilter);
+            }
+
+            const uniqueSubCats = [...new Set(itemsToScan.map(i => i.subCategoryName).filter(Boolean))].sort();
+            uniqueSubCats.forEach(subCat => {
+                const opt = document.createElement('option');
+                opt.value = subCat;
+                opt.textContent = subCat;
+                subCatSelect.appendChild(opt);
+            });
+        }
+
+        function applyFilters() {
+            const selectedCat = document.getElementById('filter-category').value;
+            const selectedSubCat = document.getElementById('filter-subcategory').value;
+            const searchQuery = document.getElementById('filter-search').value.toLowerCase().trim();
+
+            currentFilteredItems = flatItems.filter(item => {
+                if (selectedCat && item.categoryName !== selectedCat) return false;
+                if (selectedSubCat && item.subCategoryName !== selectedSubCat) return false;
+                if (searchQuery && !item.name.toLowerCase().includes(searchQuery)) return false;
+                return true;
+            });
+
+            renderItems(currentFilteredItems);
+        }
+
+        function renderItems(itemList) {
+            const container = document.getElementById('items-container');
+            container.innerHTML = '';
+
+            if (itemList.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted py-4">No items match your filter criteria.</div>';
+                return;
+            }
+
+            itemList.forEach(item => {
+                const id = item.id;
+                
+                // Default settings
+                let caseSize = 12;
+                let visible = item.name.toLowerCase().includes('pb&j') ? true : false;
+                
+                if (settings[id]) {
+                    if (settings[id].case_size !== undefined) caseSize = settings[id].case_size;
+                    if (settings[id].visible !== undefined) visible = settings[id].visible;
+                } else {
+                    // Cache default in memory settings dict
+                    settings[id] = { case_size: caseSize, visible: visible };
+                }
+
+                const metaText = [item.categoryName !== 'Uncategorized' ? item.categoryName : '', item.subCategoryName].filter(Boolean).join(' › ');
+
+                const row = document.createElement('div');
+                row.className = 'item-row';
+                row.innerHTML = `
+                    <div class="item-name">
+                        <div>${item.name}</div>
+                        ${metaText ? `<div class="item-meta">${metaText}</div>` : ''}
+                    </div>
+                    <div class="item-case">
+                        <input type="number" class="form-control" id="case-${id}" value="${caseSize}" min="1" onchange="onItemChange('${id}')">
+                    </div>
+                    <div class="item-visible form-check form-switch d-flex justify-content-center">
+                        <input class="form-check-input" type="checkbox" id="vis-${id}" ${visible ? 'checked' : ''} style="width: 2.5em; height: 1.25em;" onchange="onItemChange('${id}')">
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function onItemChange(id) {
+            const caseEl = document.getElementById(`case-${id}`);
+            const visEl = document.getElementById(`vis-${id}`);
+            if (caseEl && visEl) {
+                settings[id] = {
+                    case_size: parseInt(caseEl.value) || 12,
+                    visible: visEl.checked
+                };
+            }
+        }
+
+        function toggleSelectAllFiltered(shouldSelect) {
+            currentFilteredItems.forEach(item => {
+                const id = item.id;
+                const visEl = document.getElementById(`vis-${id}`);
+                if (visEl) {
+                    visEl.checked = shouldSelect;
+                }
+                const caseEl = document.getElementById(`case-${id}`);
+                const caseSize = caseEl ? (parseInt(caseEl.value) || 12) : (settings[id]?.case_size || 12);
+                settings[id] = {
+                    case_size: caseSize,
+                    visible: shouldSelect
+                };
+            });
+        }
+
+        async function saveSettings() {
+            const btns = document.querySelectorAll('.btn-primary');
+            btns.forEach(btn => {
+                if (btn.innerText.includes('Save')) {
+                    btn.disabled = true;
+                    btn.dataset.origText = btn.innerText;
+                    btn.innerText = 'Saving...';
+                }
+            });
+
+            try {
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+                
+                if (res.ok) {
+                    showAlert("Settings saved successfully!", "success");
+                } else {
+                    showAlert("Error saving settings.", "danger");
+                }
+            } catch (err) {
+                showAlert("Failed to save settings.", "danger");
+                console.error(err);
+            } finally {
+                btns.forEach(btn => {
+                    if (btn.dataset.origText) {
+                        btn.disabled = false;
+                        btn.innerText = btn.dataset.origText;
+                    }
+                });
+            }
+        }
+
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alert-container');
+            alertContainer.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show mb-3" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>`;
+            window.scrollTo(0, 0);
+            setTimeout(() => { alertContainer.innerHTML = ''; }, 2000);
+        }
+
+        init();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
