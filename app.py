@@ -60,17 +60,17 @@ import datetime
 def index():
     return render_template('index.html')
 
-@app.route('/tally')
-def tally():
-    return render_template('tally.html')
-
 @app.route('/warehouse_to_car')
 def warehouse_to_car():
     return render_template('warehouse_to_car.html')
 
+@app.route('/car_to_bige')
+def car_to_bige():
+    return render_template('car_to_bige.html')
+
 @app.route('/car_to_warehouse')
-def car_to_warehouse():
-    return render_template('car_to_warehouse.html')
+def car_to_warehouse_redirect():
+    return redirect(url_for('car_to_bige'))
 
 @app.route('/settings')
 def settings_page():

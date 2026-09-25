@@ -6,10 +6,15 @@
     <title>Warehouse to Car Transfer</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="icon" type="image/svg+xml" href="/static/bige_icon.svg">
     <style>
-        body { background-color: #f8f9fa; font-size: 1rem; }
+        body { background-color: #f8f9fa; font-size: 1rem; font-family: system-ui, -apple-system, sans-serif; }
+        .nav-pills .nav-link { border-radius: 8px; color: rgba(255,255,255,0.85); padding: 6px 14px; margin-right: 4px; transition: all 0.2s ease; }
+        .nav-pills .nav-link:hover { background: rgba(255,255,255,0.15); color: #fff; }
+        .nav-pills .nav-link.active { background-color: #0d6efd !important; color: #fff !important; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
         .item-row { background: white; padding: 12px 14px; margin-bottom: 10px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .sticky-top-bar { position: sticky; top: 0; background: #f8f9fa; z-index: 1000; padding: 12px 0 8px 0; border-bottom: 1px solid #dee2e6; margin-bottom: 12px; }
+        .sticky-top-bar { position: sticky; top: 0; background: #f8f9fa; z-index: 1000; padding: 8px 0; border-bottom: 1px solid #dee2e6; margin-bottom: 12px; }
         #loader { text-align: center; margin-top: 50px; font-size: 1.2rem; }
         .hidden { display: none !important; }
 
@@ -77,18 +82,60 @@
     </style>
 </head>
 <body>
+    <!-- Top Navigation Bar -->
+    <nav class="navbar navbar-expand bg-dark navbar-dark mb-3 shadow-sm">
+        <div class="container-fluid px-3">
+            <a class="navbar-brand d-flex align-items-center me-3" href="/">
+                <img src="/static/bige_logo.png" alt="Big E Logo" height="34" class="me-2 rounded-circle border border-light">
+                <span class="fw-bold d-none d-sm-inline">Big E Inventory</span>
+            </a>
+            
+            <ul class="nav nav-pills me-auto">
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/">
+                        <i class="bi bi-arrow-left-right fs-5"></i>
+                        <span class="d-none d-md-inline">Manual Transfer</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active d-flex align-items-center gap-1" href="/warehouse_to_car">
+                        <i class="bi bi-truck fs-5"></i>
+                        <span class="d-none d-md-inline">Whse &rarr; Car</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/car_to_bige">
+                        <img src="/static/bige_icon.svg" width="20" height="20" class="me-1" alt="Big E">
+                        <span class="d-none d-md-inline">Car &rarr; Big E</span>
+                    </a>
+                </li>
+            </ul>
+            
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-light btn-sm" onclick="manualRefresh()" title="Sync Square Inventory">
+                    <i class="bi bi-arrow-clockwise"></i> <span class="d-none d-lg-inline">Sync</span>
+                </button>
+                <a href="/settings" class="btn btn-outline-light btn-sm" title="Settings">
+                    <i class="bi bi-gear-fill"></i>
+                </a>
+                <a href="/logout" class="btn btn-outline-danger btn-sm" title="Logout">
+                    <i class="bi bi-box-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </nav>
+
     <div class="container pb-4">
         <div class="sticky-top-bar">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h1 class="h4 m-0 fw-bold">Whse to Car</h1>
+                <h1 class="h4 m-0 fw-bold d-flex align-items-center">
+                    <i class="bi bi-box-arrow-right text-primary me-2"></i>
+                    Whse &rarr; Car
+                </h1>
                 <div>
                     <button class="btn btn-sm btn-outline-dark me-1" data-bs-toggle="modal" data-bs-target="#historyModal" onclick="fetchHistory()" title="View History & Undo">
                         <i class="bi bi-clock-history"></i> History
                     </button>
-                    <button class="btn btn-sm btn-outline-primary me-1" onclick="manualRefresh()" title="Sync inventory with Square">
-                        <i class="bi bi-arrow-clockwise"></i>
-                    </button>
-                    <a href="/" class="btn btn-sm btn-outline-secondary">Back</a>
                 </div>
             </div>
             <div id="alert-container"></div>

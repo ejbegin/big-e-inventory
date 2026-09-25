@@ -3,23 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Quick Case Transfer</title>
+    <title>Car to Big E Transfer</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="icon" type="image/svg+xml" href="/static/bige_icon.svg">
     <style>
-        body { background-color: #f8f9fa; font-size: 1rem; }
-        .item-row { background: white; padding: 10px 14px; margin-bottom: 10px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .item-name { font-weight: bold; font-size: 1rem; border-bottom: 1px solid #eee; padding-bottom: 6px; margin-bottom: 8px; }
-        
-        .sticky-top-bar {
-            position: sticky;
-            top: 0;
-            background: #f8f9fa;
-            z-index: 1000;
-            padding: 12px 0 8px 0;
-            border-bottom: 1px solid #dee2e6;
-            margin-bottom: 12px;
-        }
+        body { background-color: #f8f9fa; font-size: 1rem; font-family: system-ui, -apple-system, sans-serif; }
+        .nav-pills .nav-link { border-radius: 8px; color: rgba(255,255,255,0.85); padding: 6px 14px; margin-right: 4px; transition: all 0.2s ease; }
+        .nav-pills .nav-link:hover { background: rgba(255,255,255,0.15); color: #fff; }
+        .nav-pills .nav-link.active { background-color: #0d6efd !important; color: #fff !important; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+        .item-row { background: white; padding: 12px 14px; margin-bottom: 10px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .sticky-top-bar { position: sticky; top: 0; background: #f8f9fa; z-index: 1000; padding: 8px 0; border-bottom: 1px solid #dee2e6; margin-bottom: 12px; }
         #loader { text-align: center; margin-top: 50px; font-size: 1.2rem; }
         .hidden { display: none !important; }
 
@@ -32,7 +27,7 @@
             border-radius: 50%;
             background: #f8f9fa;
             border: 2px solid #dee2e6;
-            margin: 0 auto 3px auto;
+            margin: 0;
             font-size: 1.25rem;
             color: #0d6efd;
             cursor: pointer;
@@ -40,58 +35,16 @@
             transition: all 0.15s ease-in-out;
             padding: 0;
         }
-        .loc-btn:hover {
-            border-color: #0d6efd;
-            background: #e7f1ff;
-        }
-        .loc-btn:active {
-            transform: scale(0.92);
-        }
-        .loc-qty {
-            font-size: 0.8rem;
-            font-weight: bold;
-            text-align: center;
-            line-height: 1.2;
-        }
-        .loc-label {
-            font-size: 0.7rem;
-            color: #6c757d;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            font-weight: 600;
-            margin-bottom: 2px;
-        }
-        .tally-pill {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-width: 50px;
-        }
-        .tally-count {
-            font-size: 1.15rem;
-            font-weight: 800;
-            color: #adb5bd;
-            line-height: 1;
-            transition: color 0.15s;
-        }
-        .tally-count.active {
-            color: #0d6efd;
-        }
-        .tally-count.active-bige {
-            color: #198754;
-        }
-        .transfer-arrow-icon {
-            color: #adb5bd;
-            font-size: 1.1rem;
-            line-height: 1;
-            margin-top: 2px;
-        }
+        .loc-btn:hover { border-color: #0d6efd; background: #e7f1ff; }
+        .loc-btn:active { transform: scale(0.92); }
+        .loc-qty { font-size: 0.8rem; font-weight: bold; text-align: center; line-height: 1.2; margin-top: 4px; }
+        
+        .tally-pill { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 50px; }
+        .tally-count { font-size: 1.15rem; font-weight: 800; color: #adb5bd; line-height: 1; transition: color 0.15s; }
+        .tally-count.active { color: #0d6efd; }
+        .transfer-arrow-icon { color: #adb5bd; font-size: 1.1rem; line-height: 1; margin-top: 2px; }
 
-        .shake-red {
-            animation: flashRed 0.5s ease-in-out;
-        }
-
+        .shake-red { animation: flashRed 0.5s ease-in-out; }
         @keyframes flashRed {
             0% { transform: scale(1); border-color: #dc3545; background-color: #ffe6e6; }
             20% { transform: scale(0.92) translateX(-4px); border-color: #dc3545; background-color: #f8d7da; }
@@ -101,25 +54,87 @@
             100% { transform: scale(1); border-color: #dee2e6; background-color: #f8f9fa; }
         }
 
-        .loc-qty-subtext {
-            font-size: 0.75rem;
-            line-height: 1.1;
+        .one-line-layout {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .item-name-col {
+            flex: 1;
+            font-weight: bold;
+            font-size: 1rem;
+            white-space: normal;
+            word-break: break-word;
+            padding-right: 10px;
+        }
+        .controls-col {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+            gap: 12px;
+        }
+        .loc-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
     </style>
 </head>
 <body>
+    <!-- Top Navigation Bar -->
+    <nav class="navbar navbar-expand bg-dark navbar-dark mb-3 shadow-sm">
+        <div class="container-fluid px-3">
+            <a class="navbar-brand d-flex align-items-center me-3" href="/">
+                <img src="/static/bige_logo.png" alt="Big E Logo" height="34" class="me-2 rounded-circle border border-light">
+                <span class="fw-bold d-none d-sm-inline">Big E Inventory</span>
+            </a>
+            
+            <ul class="nav nav-pills me-auto">
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/">
+                        <i class="bi bi-arrow-left-right fs-5"></i>
+                        <span class="d-none d-md-inline">Manual Transfer</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/warehouse_to_car">
+                        <i class="bi bi-truck fs-5"></i>
+                        <span class="d-none d-md-inline">Whse &rarr; Car</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active d-flex align-items-center gap-1" href="/car_to_bige">
+                        <img src="/static/bige_icon.svg" width="20" height="20" class="me-1" alt="Big E">
+                        <span class="d-none d-md-inline">Car &rarr; Big E</span>
+                    </a>
+                </li>
+            </ul>
+            
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-light btn-sm" onclick="manualRefresh()" title="Sync Square Inventory">
+                    <i class="bi bi-arrow-clockwise"></i> <span class="d-none d-lg-inline">Sync</span>
+                </button>
+                <a href="/settings" class="btn btn-outline-light btn-sm" title="Settings">
+                    <i class="bi bi-gear-fill"></i>
+                </a>
+                <a href="/logout" class="btn btn-outline-danger btn-sm" title="Logout">
+                    <i class="bi bi-box-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </nav>
+
     <div class="container pb-4">
         <div class="sticky-top-bar">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h1 class="h4 m-0 fw-bold">Case Transfer</h1>
+                <h1 class="h4 m-0 fw-bold d-flex align-items-center">
+                    <i class="bi bi-truck text-primary me-2"></i>
+                    Car &rarr; Big E
+                </h1>
                 <div>
                     <button class="btn btn-sm btn-outline-dark me-1" data-bs-toggle="modal" data-bs-target="#historyModal" onclick="fetchHistory()" title="View History & Undo">
                         <i class="bi bi-clock-history"></i> History
                     </button>
-                    <button class="btn btn-sm btn-outline-primary me-1" onclick="manualRefresh()" title="Sync inventory with Square">
-                        <i class="bi bi-arrow-clockwise"></i> Sync Square
-                    </button>
-                    <a href="/" class="btn btn-sm btn-outline-secondary">Back</a>
                 </div>
             </div>
             <div id="alert-container"></div>
@@ -127,7 +142,7 @@
             <select id="categoryFilter" class="form-select mb-2" onchange="filterItems()">
                 <option value="">All Categories</option>
             </select>
-            <button class="btn btn-success w-100 fw-bold submit-btn shadow-sm" onclick="submitAllTransfers()" disabled>Submit Transfers</button>
+            <button class="btn btn-success w-100 fw-bold submit-btn shadow-sm" onclick="submitAllTransfers()" disabled>Submit Transfers to Big E</button>
         </div>
 
         <div id="loader">
@@ -136,7 +151,41 @@
         </div>
         <div id="items-container" style="display: none;"></div>
         
-        <button class="btn btn-success w-100 fw-bold mt-4 submit-btn shadow-sm" id="submit-bottom" onclick="submitAllTransfers()" style="display: none;" disabled>Submit Transfers</button>
+        <button class="btn btn-success w-100 fw-bold mt-4 submit-btn shadow-sm" id="submit-bottom" onclick="submitAllTransfers()" style="display: none;" disabled>Submit Transfers to Big E</button>
+    </div>
+
+    <!-- History Modal -->
+    <div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="historyModalLabel"><i class="bi bi-clock-history me-2"></i>Transfer History</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <div id="modal-alert-container"></div>
+                    <div class="d-flex justify-content-end mb-2">
+                        <button id="undo-btn" class="btn btn-warning btn-sm fw-bold shadow-sm" onclick="undoLastChange()" disabled>
+                            <i class="bi bi-arrow-counterclockwise me-1"></i> Undo Last Change
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 25%;">Time</th>
+                                    <th>Summary</th>
+                                    <th style="width: 20%; text-align: center;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-tbody">
+                                <tr><td colspan="3" class="text-center py-3 text-muted">Loading history...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -146,29 +195,23 @@
         let settings = {};
         let transferState = {};
         
-        let warehouseId, carId, bigEId;
-        let bigELogoUrl = '/static/bige_logo.png';
+        let carId, bigEId;
 
         async function init(forceCatalogRefresh = false) {
             try {
                 document.getElementById('loader').style.display = 'block';
                 document.getElementById('items-container').style.display = 'none';
 
-                // Fetch locations
                 const locRes = await fetch('/api/locations');
                 const locData = await locRes.json();
                 locations = locData.locations || [];
                 
                 locations.forEach(loc => {
                     const name = loc.name.toLowerCase();
-                    if (name.includes('warehouse')) warehouseId = loc.id;
                     if (name === 'car' || name.includes('van')) carId = loc.id;
-                    if (name.includes('big e')) {
-                        bigEId = loc.id;
-                    }
+                    if (name.includes('big e')) bigEId = loc.id;
                 });
 
-                // Fetch catalog
                 const catUrl = forceCatalogRefresh ? '/api/catalog?refresh=true' : '/api/catalog';
                 const catRes = await fetch(catUrl);
                 const catData = await catRes.json();
@@ -176,20 +219,18 @@
 
                 populateCategoryFilter();
 
-                // Fetch counts
                 const countsRes = await fetch('/api/inventory/counts');
                 const countsData = await countsRes.json();
                 counts = countsData.counts || [];
 
-                // Fetch settings
                 const setRes = await fetch('/api/settings');
                 settings = await setRes.json();
 
                 renderItems();
                 updateSubmitButtons();
             } catch (err) {
-                showAlert("Failed to load data. Please refresh.", "danger");
-                console.error(err);
+                console.error("Initialization error:", err);
+                showAlert("Failed to load inventory data.", "danger");
             }
         }
 
@@ -197,9 +238,7 @@
             const directCatIds = new Set();
             if (!itemObj || !itemObj.item_data) return [];
 
-            if (itemObj.item_data.category_id) {
-                directCatIds.add(itemObj.item_data.category_id);
-            }
+            if (itemObj.item_data.category_id) directCatIds.add(itemObj.item_data.category_id);
             if (Array.isArray(itemObj.item_data.categories)) {
                 itemObj.item_data.categories.forEach(c => {
                     if (typeof c === 'string') directCatIds.add(c);
@@ -210,9 +249,7 @@
             const allCatIds = new Set(directCatIds);
             const catMap = {};
             items.forEach(obj => {
-                if (obj.type === 'CATEGORY' && obj.id) {
-                    catMap[obj.id] = obj;
-                }
+                if (obj.type === 'CATEGORY' && obj.id) catMap[obj.id] = obj;
             });
 
             directCatIds.forEach(catId => {
@@ -230,7 +267,6 @@
         function populateCategoryFilter() {
             const categorySelect = document.getElementById('categoryFilter');
             if (!categorySelect) return;
-
             const currentVal = categorySelect.value;
 
             const bigECat = items.find(obj => 
@@ -240,15 +276,14 @@
                 obj.category_data.name.trim().toLowerCase() === 'big e'
             );
 
-            const bigEId = bigECat ? bigECat.id : null;
-
+            const bigEIdCat = bigECat ? bigECat.id : null;
             let childCategories = [];
-            if (bigEId) {
+            if (bigEIdCat) {
                 childCategories = items.filter(obj => 
                     obj.type === 'CATEGORY' && 
                     obj.category_data && 
                     obj.category_data.parent_category && 
-                    obj.category_data.parent_category.id === bigEId
+                    obj.category_data.parent_category.id === bigEIdCat
                 );
             }
 
@@ -328,9 +363,7 @@
                     });
                 }
             });
-            window.visibleItemsList = visibleItems;
 
-            // Sort alphabetically by name
             visibleItems.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
             visibleItems.forEach(item => {
@@ -339,7 +372,11 @@
                 const caseSize = item.caseSize;
                 
                 const inv = getItemCounts(id, caseSize);
+                const carInv = inv[carId];
                 
+                // Only show items with inventory > 0 in car
+                if (!carInv || carInv.total === 0) return;
+
                 const formatInv = (locId) => {
                     if (!locId) return 'N/A';
                     const i = inv[locId];
@@ -350,7 +387,6 @@
                     return text;
                 };
 
-                const whseStr = formatInv(warehouseId);
                 const carStr = formatInv(carId);
                 const bigEStr = formatInv(bigEId);
 
@@ -359,49 +395,34 @@
                 card.setAttribute('data-name', name.toLowerCase());
                 card.setAttribute('data-categories', item.categoryIds.join(','));
                 
-                transferState[id] = { whse_car: 0, car_bige: 0, caseSize: caseSize };
+                transferState[id] = { transfer_qty: 0, caseSize: caseSize, itemName: name };
 
                 card.innerHTML = `
-                    <div class="item-name" title="${name}">${name}</div>
-                    
-                    <div class="d-flex justify-content-between align-items-center px-1">
-                        <!-- Warehouse -->
-                        <div class="text-center" style="width: 28%;">
-                            <div class="loc-label">Warehouse</div>
-                            <button type="button" id="btn-warehouse-${id}" class="loc-btn shadow-sm" onclick="onLocationClick('${id}', 'Warehouse')" title="Tap to return a case to Warehouse (-1 from Car)">
-                                <i class="bi bi-house-door-fill"></i>
-                            </button>
-                            <div class="loc-qty" id="qty-whse-${id}">${whseStr}</div>
-                        </div>
+                    <div class="one-line-layout">
+                        <div class="item-name-col" title="${name}">${name}</div>
                         
-                        <!-- Transfer Indicator W->C -->
-                        <div class="tally-pill">
-                            <span class="tally-count" id="tally-whse_car-${id}">0</span>
-                            <div class="transfer-arrow-icon"><i class="bi bi-arrow-right"></i></div>
-                        </div>
+                        <div class="controls-col">
+                            <!-- Car -->
+                            <div class="loc-col">
+                                <button type="button" id="btn-car-${id}" class="loc-btn shadow-sm" onclick="onLocationClick('${id}', 'Car')" title="Return a case to Car (-1)">
+                                    <i class="bi bi-truck"></i>
+                                </button>
+                                <div class="loc-qty" id="qty-car-${id}">${carStr}</div>
+                            </div>
+                            
+                            <!-- Transfer Indicator -->
+                            <div class="tally-pill">
+                                <span class="tally-count" id="tally-${id}">0</span>
+                                <div class="transfer-arrow-icon"><i class="bi bi-arrow-right"></i></div>
+                            </div>
 
-                        <!-- Car -->
-                        <div class="text-center" style="width: 28%;">
-                            <div class="loc-label">Car</div>
-                            <button type="button" id="btn-car-${id}" class="loc-btn shadow-sm" onclick="onLocationClick('${id}', 'Car')" title="Tap to transfer from Warehouse (+1 to Car)">
-                                <i class="bi bi-truck"></i>
-                            </button>
-                            <div class="loc-qty" id="qty-car-${id}">${carStr}</div>
-                        </div>
-                        
-                        <!-- Transfer Indicator C->B -->
-                        <div class="tally-pill">
-                            <span class="tally-count" id="tally-car_bige-${id}">0</span>
-                            <div class="transfer-arrow-icon"><i class="bi bi-arrow-right"></i></div>
-                        </div>
-
-                        <!-- Big E -->
-                        <div class="text-center" style="width: 28%;">
-                            <div class="loc-label">Big E</div>
-                            <button type="button" id="btn-bige-${id}" class="loc-btn shadow-sm p-1" onclick="onLocationClick('${id}', 'Big E')" title="Tap to transfer from Car (+1 to Big E)" style="overflow: hidden;">
-                                <img src="${bigELogoUrl}" alt="Big E" style="width: 100%; height: 100%; object-fit: contain;">
-                            </button>
-                            <div class="loc-qty" id="qty-bige-${id}">${bigEStr}</div>
+                            <!-- Big E -->
+                            <div class="loc-col">
+                                <button type="button" id="btn-bige-${id}" class="loc-btn shadow-sm overflow-hidden p-1" onclick="onLocationClick('${id}', 'BigE')" title="Transfer from Car to Big E (+1)">
+                                    <img src="/static/bige_icon.svg" style="width: 100%; height: 100%; object-fit: contain;" alt="Big E">
+                                </button>
+                                <div class="loc-qty" id="qty-bige-${id}">${bigEStr}</div>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -409,11 +430,10 @@
             });
 
             if (container.innerHTML === '') {
-                container.innerHTML = '<div class="alert alert-info shadow-sm">No items configured for Quick Transfer. Go to Settings to make items visible.</div>';
+                container.innerHTML = '<div class="alert alert-info shadow-sm">No items in the Car available for transfer to Big E.</div>';
                 document.getElementById('submit-bottom').style.display = 'none';
             }
             
-            // Reapply filter if exists
             filterItems();
         }
 
@@ -441,7 +461,6 @@
             const btn = document.getElementById(btnId);
             if (!btn) return;
             btn.classList.remove('shake-red');
-            // Trigger reflow
             void btn.offsetWidth;
             btn.classList.add('shake-red');
         }
@@ -452,62 +471,35 @@
             const caseSize = state.caseSize || 12;
             const inv = getItemCounts(variationId, caseSize);
 
-            const whseUnits = warehouseId && inv[warehouseId] ? inv[warehouseId].total : 0;
             const carUnits = carId && inv[carId] ? inv[carId].total : 0;
 
-            if (loc === 'Car') {
-                // If cases were staged Car -> Big E, tapping Car steps back/reduces Car -> Big E first
-                if (state.car_bige > 0) {
-                    updateTally(variationId, 'car_bige', -1);
-                } else {
-                    // Otherwise, tapping Car transfers Warehouse -> Car (+1)
-                    // Check if warehouse has enough actual units for another full case
-                    const currentlyStagedUnits = state.whse_car * caseSize;
-                    if (whseUnits - currentlyStagedUnits < caseSize) {
-                        flashButtonRed(`btn-car-${variationId}`);
-                        return;
-                    }
-                    updateTally(variationId, 'whse_car', 1);
-                }
-            } else if (loc === 'Warehouse') {
-                // Tapping Warehouse removes a case from Warehouse -> Car (-1)
-                if (state.whse_car <= 0) {
-                    flashButtonRed(`btn-warehouse-${variationId}`);
-                    return;
-                }
-
-                // Check if reducing Whse->Car would orphan a staged Car->Big E transfer
-                // If Whse->Car drops by 1 case, Car's post-transfer inventory must still be >= 0
-                const projectedCarUnits = carUnits + ((state.whse_car - 1) * caseSize) - (state.car_bige * caseSize);
-                if (projectedCarUnits < 0) {
-                    // Cannot back out from Car without first backing out Big E
-                    flashButtonRed(`btn-warehouse-${variationId}`);
-                    return;
-                }
-
-                updateTally(variationId, 'whse_car', -1);
-            } else if (loc === 'Big E') {
-                // Tapping Big E transfers Car -> Big E (+1)
-                // Net units in Car considering staged transfers: carUnits + (staged whse->car) - (staged car->bige)
-                const currentNetCarUnits = carUnits + (state.whse_car * caseSize) - (state.car_bige * caseSize);
-                if (currentNetCarUnits < caseSize) {
+            if (loc === 'BigE') {
+                // Tapping Big E transfers Car -> Big E (+1 case)
+                const currentlyStagedUnits = state.transfer_qty * caseSize;
+                if (carUnits - currentlyStagedUnits < caseSize) {
                     flashButtonRed(`btn-bige-${variationId}`);
                     return;
                 }
-                updateTally(variationId, 'car_bige', 1);
+                updateTally(variationId, 1);
+            } else if (loc === 'Car') {
+                // Tapping Car reduces staged transfer (-1 case)
+                if (state.transfer_qty <= 0) {
+                    flashButtonRed(`btn-car-${variationId}`);
+                    return;
+                }
+                updateTally(variationId, -1);
             }
         }
 
-        function updateTally(variationId, route, delta) {
+        function updateTally(variationId, delta) {
             if (!transferState[variationId]) return;
-            transferState[variationId][route] += delta;
-            if (transferState[variationId][route] < 0) transferState[variationId][route] = 0;
+            transferState[variationId].transfer_qty += delta;
+            if (transferState[variationId].transfer_qty < 0) transferState[variationId].transfer_qty = 0;
             
-            const badge = document.getElementById(`tally-${route}-${variationId}`);
-            const count = transferState[variationId][route];
+            const badge = document.getElementById(`tally-${variationId}`);
+            const count = transferState[variationId].transfer_qty;
             badge.innerText = count;
             
-            // Highlight when > 0
             if (count > 0) {
                 badge.classList.add('active');
             } else {
@@ -520,7 +512,7 @@
         function updateSubmitButtons() {
             let hasTransfers = false;
             for (const id in transferState) {
-                if (transferState[id].whse_car > 0 || transferState[id].car_bige > 0) {
+                if (transferState[id].transfer_qty > 0) {
                     hasTransfers = true;
                     break;
                 }
@@ -532,101 +524,77 @@
         }
 
         async function submitAllTransfers() {
-            let totalTransfers = 0;
-            for (const id in transferState) {
-                if (transferState[id].whse_car > 0) totalTransfers++;
-                if (transferState[id].car_bige > 0) totalTransfers++;
-            }
-
-            if (totalTransfers === 0) {
-                showAlert("No cases selected to transfer.", "warning");
+            if (!carId || !bigEId) {
+                showAlert("Location error: Car or Big E location not found.", "danger");
                 return;
             }
 
-            const btns = document.querySelectorAll('.submit-btn');
-            btns.forEach(btn => {
-                btn.disabled = true;
-                btn.innerText = "Processing...";
-            });
+            const transfersToMake = [];
+            let totalCases = 0;
+
+            for (const id in transferState) {
+                const qtyCases = transferState[id].transfer_qty;
+                if (qtyCases > 0) {
+                    const caseSize = transferState[id].caseSize || 12;
+                    const totalUnits = qtyCases * caseSize;
+                    transfersToMake.push({
+                        catalog_object_id: id,
+                        caseQty: qtyCases,
+                        units: totalUnits,
+                        itemName: transferState[id].itemName
+                    });
+                    totalCases += qtyCases;
+                }
+            }
+
+            if (transfersToMake.length === 0) return;
+
+            if (!confirm(`Confirm transfer of ${totalCases} case(s) across ${transfersToMake.length} item(s) from Car to Big E?`)) return;
+
+            const submitBtns = document.querySelectorAll('.submit-btn');
+            submitBtns.forEach(btn => { btn.disabled = true; btn.innerText = "Submitting..."; });
 
             const batchId = 'batch-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-            const itemMap = {};
-            if (window.visibleItemsList) {
-                window.visibleItemsList.forEach(i => { itemMap[i.id] = i; });
-            }
+            let successCount = 0;
+            let errors = [];
 
-            try {
-                // Execute sequentially
-                for (const variationId in transferState) {
-                    const state = transferState[variationId];
-                    const caseSize = state.caseSize || 12;
-                    const itemObj = itemMap[variationId];
-                    const itemName = itemObj ? itemObj.name : 'Item';
-
-                    if (state.whse_car > 0 && warehouseId && carId) {
-                        const quantity = state.whse_car * caseSize;
-                        const summary = `Transferred ${state.whse_car} case(s) (${quantity} units) of ${itemName} from Warehouse to Car`;
-                        await transferApi(warehouseId, carId, variationId, quantity, {
+            for (const item of transfersToMake) {
+                const summaryText = `Transferred ${item.caseQty} case(s) (${item.units} units) of ${item.itemName} from Car to Big E`;
+                try {
+                    const res = await fetch('/api/inventory/transfer', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            from_location_id: carId,
+                            to_location_id: bigEId,
+                            catalog_object_id: item.catalog_object_id,
+                            quantity: item.units,
                             batch_id: batchId,
-                            item_name: itemName,
-                            from_location_name: "Warehouse",
-                            to_location_name: "Car",
-                            summary: summary
-                        });
-                    }
-                    if (state.car_bige > 0 && carId && bigEId) {
-                        const quantity = state.car_bige * caseSize;
-                        const summary = `Transferred ${state.car_bige} case(s) (${quantity} units) of ${itemName} from Car to Big E`;
-                        await transferApi(carId, bigEId, variationId, quantity, {
-                            batch_id: batchId,
-                            item_name: itemName,
+                            item_name: item.itemName,
                             from_location_name: "Car",
                             to_location_name: "Big E",
-                            summary: summary
-                        });
+                            summary: summaryText
+                        })
+                    });
+                    
+                    const data = await res.json();
+                    if (res.ok) {
+                        successCount++;
+                    } else {
+                        errors.push(`${item.itemName}: ${data.error || 'Failed'}`);
                     }
+                } catch (err) {
+                    errors.push(`${item.itemName}: Network error`);
                 }
-
-                showAlert("All transfers successful!", "success");
-                
-                // Clear search and category filter
-                document.getElementById('searchInput').value = '';
-                if (document.getElementById('categoryFilter')) {
-                    document.getElementById('categoryFilter').value = '';
-                }
-                
-                // Refresh data
-                await init();
-                fetchHistory();
-            } catch (err) {
-                showAlert("Error processing transfers: " + err.message, "danger");
-                console.error(err);
-            } finally {
-                btns.forEach(btn => {
-                    btn.disabled = false;
-                    btn.innerText = "Submit Transfers";
-                });
-                updateSubmitButtons();
             }
-        }
 
-        async function transferApi(fromLoc, toLoc, catalogObjId, quantity, meta = {}) {
-            const res = await fetch('/api/inventory/transfer', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    from_location_id: fromLoc,
-                    to_location_id: toLoc,
-                    catalog_object_id: catalogObjId,
-                    quantity: quantity,
-                    ...meta
-                })
-            });
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.error || "Transfer failed");
+            if (errors.length === 0) {
+                showAlert(`Successfully transferred ${totalCases} case(s) to Big E!`, "success");
+            } else {
+                showAlert(`Transferred ${successCount} item(s). Errors: ${errors.join(', ')}`, "warning");
             }
-            return await res.json();
+
+            await init();
         }
 
         async function fetchHistory() {
@@ -636,11 +604,11 @@
                 const history = data.history || [];
 
                 const activeEntries = history.filter(h => h.status === 'completed');
-                const undoBtns = document.querySelectorAll('#undo-btn');
-                undoBtns.forEach(b => {
-                    b.disabled = activeEntries.length === 0;
-                    b.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i> Undo Last Change';
-                });
+                const undoBtn = document.getElementById('undo-btn');
+                if (undoBtn) {
+                    undoBtn.disabled = activeEntries.length === 0;
+                    undoBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i> Undo Last Change';
+                }
 
                 const tbody = document.getElementById('history-tbody');
                 if (!tbody) return;
@@ -677,8 +645,8 @@
         async function undoLastChange() {
             if (!confirm("Are you sure you want to undo the last transfer operation?")) return;
             
-            const undoBtns = document.querySelectorAll('#undo-btn');
-            undoBtns.forEach(b => { b.disabled = true; b.innerText = 'Undoing...'; });
+            const undoBtn = document.getElementById('undo-btn');
+            if (undoBtn) { undoBtn.disabled = true; undoBtn.innerText = 'Undoing...'; }
 
             try {
                 const res = await fetch('/api/history/undo', { method: 'POST' });
@@ -688,33 +656,17 @@
                 }
 
                 showAlert("Undo Successful: " + (data.message || "Reverted last change"), "success");
-
-                const modalAlert = document.getElementById('modal-history-alert');
-                if (modalAlert) {
-                    modalAlert.innerHTML = `<div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
-                        ${data.message || 'Undo successful!'}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>`;
-                }
-
                 await init();
                 await fetchHistory();
             } catch (err) {
                 showAlert("Failed to undo: " + err.message, "danger");
-                const modalAlert = document.getElementById('modal-history-alert');
-                if (modalAlert) {
-                    modalAlert.innerHTML = `<div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
-                        Failed to undo: ${err.message}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>`;
-                }
                 await fetchHistory();
             }
         }
 
         function showAlert(message, type) {
             const alertContainer = document.getElementById('alert-container');
-            alertContainer.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show mb-3 shadow-sm" role="alert">
+            alertContainer.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show shadow-sm" role="alert">
                 ${message}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>`;
@@ -723,48 +675,7 @@
         }
 
         init();
-        fetchHistory();
     </script>
-
-    <!-- History Modal -->
-    <div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header bg-light">
-                    <h5 class="modal-title fw-bold" id="historyModalLabel"><i class="bi bi-clock-history me-2"></i>Transfer History</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-light rounded border">
-                        <div>
-                            <h6 class="fw-bold mb-1">Undo Last Operation</h6>
-                            <small class="text-muted">Reverses the most recent transfer submit action.</small>
-                        </div>
-                        <button id="undo-btn" class="btn btn-warning fw-bold shadow-sm" onclick="undoLastChange()" disabled>
-                            <i class="bi bi-arrow-counterclockwise me-1"></i> Undo Last Change
-                        </button>
-                    </div>
-
-                    <div id="modal-history-alert"></div>
-
-                    <div class="table-responsive">
-                        <table class="table table-hover table-striped align-middle mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th style="width: 25%;">Time</th>
-                                    <th>Summary of Changes</th>
-                                    <th style="width: 20%; text-align: center;">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="history-tbody">
-                                <tr><td colspan="3" class="text-center py-3 text-muted">Loading history...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
