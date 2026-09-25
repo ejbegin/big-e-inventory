@@ -492,7 +492,9 @@ def api_settings():
             return jsonify({"status": "success"})
         else:
             return jsonify({"status": "error", "message": "Failed to save settings to Square"}), 500
-    return jsonify(load_settings())
+    res = jsonify(load_settings())
+    res.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return res
 
 @app.route('/api/users', methods=['GET', 'POST'])
 def api_users():
