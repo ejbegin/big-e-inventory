@@ -1014,40 +1014,42 @@ def shortcode_to_media_id(shortcode: str) -> Optional[str]:
 
 def parse_instagram_uris(destination: str):
     """
-    Parses an Instagram URL and returns (app_uri, android_intent).
+    Parses an Instagram URL and returns (app_uri, android_intent, is_reel, shortcode).
     Handles reels, posts, stories, user profiles, and general fallback.
     """
     if not destination:
-        return '', ''
+        return '', '', False, None
     
     parsed = urllib.parse.urlparse(destination)
     netloc = parsed.netloc.lower()
     if 'instagram.com' not in netloc and 'instagr.am' not in netloc:
-        return '', ''
+        return '', '', False, None
     
     path = parsed.path.strip('/')
     segments = path.split('/') if path else []
     
     if not segments:
-        return 'instagram://app', f"intent://instagram.com/#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
+        return 'instagram://app', f"intent://instagram.com/#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end", False, None
     
     first = segments[0].lower()
     
     # Reel or Reels: e.g. /reel/<shortcode> or /reels/<shortcode>
     if first in ('reel', 'reels') and len(segments) > 1:
-        shortcode = segments[1]
-        media_id = shortcode_to_media_id(shortcode)
-        app_uri = f"instagram://media?id={media_id}" if media_id else "instagram://app"
+        shortcode = segments[1].split('?')[0]
+        # For Reels, do NOT use instagram://media?id=... as that forces the legacy "videos" player.
+        # Instead, Universal Link (destination) on user-tap opens the native Reels player on iOS,
+        # and Chrome intent opens the Reels player on Android.
+        app_uri = f"https://www.instagram.com/reel/{shortcode}/"
         android_intent = f"intent://www.instagram.com/reel/{shortcode}/#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
-        return app_uri, android_intent
+        return app_uri, android_intent, True, shortcode
         
     # Post: e.g. /p/<shortcode>
     if first == 'p' and len(segments) > 1:
-        shortcode = segments[1]
+        shortcode = segments[1].split('?')[0]
         media_id = shortcode_to_media_id(shortcode)
         app_uri = f"instagram://media?id={media_id}" if media_id else "instagram://app"
         android_intent = f"intent://www.instagram.com/p/{shortcode}/#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
-        return app_uri, android_intent
+        return app_uri, android_intent, False, shortcode
         
     # Stories: e.g. /stories/<username>/<story_id>
     if first == 'stories' and len(segments) > 1:
@@ -1055,7 +1057,7 @@ def parse_instagram_uris(destination: str):
         story_id = segments[2] if len(segments) > 2 else ''
         app_uri = f"instagram://user?username={username}"
         android_intent = f"intent://www.instagram.com/stories/{username}/{story_id}#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
-        return app_uri, android_intent
+        return app_uri, android_intent, False, None
 
     # Ignored paths that aren't usernames
     reserved = {'explore', 'direct', 'accounts', 'legal', 'about', 'developer', 'tv'}
@@ -1063,9 +1065,9 @@ def parse_instagram_uris(destination: str):
         username = first
         app_uri = f"instagram://user?username={username}"
         android_intent = f"intent://www.instagram.com/{username}/#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
-        return app_uri, android_intent
+        return app_uri, android_intent, False, None
         
-    return "instagram://app", f"intent://{parsed.netloc}{parsed.path}#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
+    return "instagram://app", f"intent://{parsed.netloc}{parsed.path}#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end", False, None
 
 @app.route('/qr/<qr_id>')
 def qr_redirect(qr_id):
@@ -1082,17 +1084,16 @@ def qr_redirect(qr_id):
     save_redirects(redirects)
 
     destination = qr_data.get('destination', '')
-    
-    # Reels workaround: Direct 302 redirects allow iOS Universal Links and Android App Links 
-    # to open the Reels view natively, bypassing the custom instagram://media scheme 
-    # which incorrectly forces the legacy "videos" screen.
-    parsed = urllib.parse.urlparse(destination)
-    if 'instagram.com' in parsed.netloc and ('/reel/' in parsed.path or '/reels/' in parsed.path):
-        return redirect(destination)
-        
-    app_uri, android_intent = parse_instagram_uris(destination)
+    app_uri, android_intent, is_reel, shortcode = parse_instagram_uris(destination)
+    name = qr_data.get('name', 'Instagram Link')
 
-    return render_template('qr_redirect.html', destination=destination, app_uri=app_uri, android_intent=android_intent)
+    return render_template('qr_redirect.html', 
+                           destination=destination, 
+                           app_uri=app_uri, 
+                           android_intent=android_intent,
+                           is_reel=is_reel,
+                           shortcode=shortcode,
+                           item_name=name)
 
 
 if __name__ == '__main__':

@@ -130,8 +130,27 @@
                         <hr class="my-4 text-muted opacity-25">
 
                         <h6 class="fw-bold mb-3"><i class="bi bi-palette me-2 text-primary"></i>QR Code Designer</h6>
-                        
-                        <div class="row g-3 mb-3">
+
+                        <div class="mb-3 p-2 rounded bg-light border">
+                            <label class="form-label small fw-semibold d-flex justify-content-between align-items-center mb-1">
+                                <span><i class="bi bi-qr-code-scan text-primary me-1"></i>Encoded QR Target</span>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-normal" id="qr-target-badge">Dynamic (/qr/...)</span>
+                            </label>
+                            <div class="btn-group w-100 mb-1" role="group">
+                                <input type="radio" class="btn-check" name="qr-target-mode" id="qr-target-mode-dynamic" value="dynamic" checked onchange="updateQRCode()">
+                                <label class="btn btn-outline-primary btn-sm" for="qr-target-mode-dynamic">
+                                    <i class="bi bi-shuffle me-1"></i>Dynamic (/qr/...)
+                                </label>
+                                
+                                <input type="radio" class="btn-check" name="qr-target-mode" id="qr-target-mode-direct" value="direct" onchange="updateQRCode()">
+                                <label class="btn btn-outline-primary btn-sm" for="qr-target-mode-direct">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>Direct Link (0-Click)
+                                </label>
+                            </div>
+                            <div class="form-text small" id="qr-target-hint" style="font-size: 0.75rem;">
+                                <i class="bi bi-bar-chart-fill me-1"></i><b>Dynamic:</b> Tracks scan counts & lets you change destination anytime without reprinting. Opens via 1-tap Reels bridge card.
+                            </div>
+                        </div>
                             <div class="col-6">
                                 <label class="form-label small fw-semibold">Foreground Color</label>
                                 <input type="color" class="form-control form-control-color w-100" id="qr-color-fg" value="#000000" onchange="updateQRCode()">
@@ -759,6 +778,8 @@
 
         function newRedirect() {
             document.getElementById('redirect-form').reset();
+            const dynRadio = document.getElementById('qr-target-mode-dynamic');
+            if (dynRadio) dynRadio.checked = true;
             document.getElementById('qr-id').readOnly = false;
             document.getElementById('editor-title').innerText = 'Create New Redirect';
             document.getElementById('telemetry-box').style.display = 'none';
@@ -859,8 +880,27 @@
             const id = document.getElementById('qr-id').value;
             if (!id || !currentRedirects[id]) return;
 
+            const r = currentRedirects[id];
             const baseUrl = 'https://inventory.madeby.gifts';
-            const targetUrl = baseUrl + '/qr/' + id;
+            const dynamicUrl = baseUrl + '/qr/' + id;
+            const directUrl = (r.destination || document.getElementById('qr-destination').value || '').trim();
+
+            const isDirect = document.getElementById('qr-target-mode-direct') && document.getElementById('qr-target-mode-direct').checked;
+            const targetUrl = (isDirect && directUrl) ? directUrl : dynamicUrl;
+
+            const badge = document.getElementById('qr-target-badge');
+            const hint = document.getElementById('qr-target-hint');
+            if (badge) {
+                badge.textContent = isDirect ? 'Direct Link' : 'Dynamic (/qr/...)';
+                badge.className = isDirect ? 'badge bg-success-subtle text-success border border-success-subtle fw-normal' : 'badge bg-primary-subtle text-primary border border-primary-subtle fw-normal';
+            }
+            if (hint) {
+                if (isDirect) {
+                    hint.innerHTML = '<span class="text-success"><i class="bi bi-lightning-charge-fill me-1"></i><b>Direct Link:</b> Encodes raw Instagram URL. When scanned by camera, phone detects Instagram and opens straight to Reels (0-click, no browser). Scan count is not tracked.</span>';
+                } else {
+                    hint.innerHTML = '<span class="text-muted"><i class="bi bi-bar-chart-fill me-1"></i><b>Dynamic Redirect:</b> Tracks scans & allows editing destination without reprinting. Opens via 1-tap Reels bridge card.</span>';
+                }
+            }
             const fgColor = document.getElementById('qr-color-fg').value;
             const bgColor = document.getElementById('qr-color-bg').value;
             const dotStyle = document.getElementById('qr-dot-style').value;
