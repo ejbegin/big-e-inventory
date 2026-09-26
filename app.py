@@ -10,6 +10,7 @@ from authlib.integrations.flask_client import OAuth
 import datetime
 import json
 import uuid
+import urllib.parse
 
 load_dotenv()
 
@@ -831,6 +832,71 @@ def api_qr():
             return jsonify({'status': 'success'})
         return jsonify({'error': 'Not found'}), 404
 
+def shortcode_to_media_id(shortcode: str) -> Optional[str]:
+    alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+    media_id = 0
+    for char in shortcode:
+        if char in alphabet:
+            media_id = (media_id * 64) + alphabet.index(char)
+        else:
+            return None
+    return str(media_id) if media_id > 0 else None
+
+def parse_instagram_uris(destination: str):
+    """
+    Parses an Instagram URL and returns (app_uri, android_intent).
+    Handles reels, posts, stories, user profiles, and general fallback.
+    """
+    if not destination:
+        return '', ''
+    
+    parsed = urllib.parse.urlparse(destination)
+    netloc = parsed.netloc.lower()
+    if 'instagram.com' not in netloc and 'instagr.am' not in netloc:
+        return '', ''
+    
+    path = parsed.path.strip('/')
+    segments = path.split('/') if path else []
+    
+    if not segments:
+        return 'instagram://app', f"intent://instagram.com/#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
+    
+    first = segments[0].lower()
+    
+    # Reel or Reels: e.g. /reel/<shortcode> or /reels/<shortcode>
+    if first in ('reel', 'reels') and len(segments) > 1:
+        shortcode = segments[1]
+        media_id = shortcode_to_media_id(shortcode)
+        app_uri = f"instagram://media?id={media_id}" if media_id else "instagram://app"
+        android_intent = f"intent://www.instagram.com/reel/{shortcode}/#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
+        return app_uri, android_intent
+        
+    # Post: e.g. /p/<shortcode>
+    if first == 'p' and len(segments) > 1:
+        shortcode = segments[1]
+        media_id = shortcode_to_media_id(shortcode)
+        app_uri = f"instagram://media?id={media_id}" if media_id else "instagram://app"
+        android_intent = f"intent://www.instagram.com/p/{shortcode}/#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
+        return app_uri, android_intent
+        
+    # Stories: e.g. /stories/<username>/<story_id>
+    if first == 'stories' and len(segments) > 1:
+        username = segments[1]
+        story_id = segments[2] if len(segments) > 2 else ''
+        app_uri = f"instagram://user?username={username}"
+        android_intent = f"intent://www.instagram.com/stories/{username}/{story_id}#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
+        return app_uri, android_intent
+
+    # Ignored paths that aren't usernames
+    reserved = {'explore', 'direct', 'accounts', 'legal', 'about', 'developer', 'tv'}
+    if first not in reserved:
+        username = first
+        app_uri = f"instagram://user?username={username}"
+        android_intent = f"intent://www.instagram.com/{username}/#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
+        return app_uri, android_intent
+        
+    return "instagram://app", f"intent://{parsed.netloc}{parsed.path}#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
+
 @app.route('/qr/<qr_id>')
 def qr_redirect(qr_id):
     redirects = load_redirects()
@@ -840,20 +906,9 @@ def qr_redirect(qr_id):
         return redirect('/') 
     
     destination = qr_data.get('destination', '')
-    app_uri = "instagram://camera" 
-    
-    if 'instagram.com/p/' in destination:
-        parts = destination.split('instagram.com/p/')
-        if len(parts) > 1:
-            post_id = parts[1].split('/')[0]
-            app_uri = f"instagram://media?id={post_id}"
-    elif 'instagram.com/' in destination:
-        parts = destination.split('instagram.com/')
-        if len(parts) > 1:
-            username = parts[1].split('/')[0]
-            app_uri = f"instagram://user?username={username}"
+    app_uri, android_intent = parse_instagram_uris(destination)
 
-    return render_template('qr_redirect.html', destination=destination, app_uri=app_uri)
+    return render_template('qr_redirect.html', destination=destination, app_uri=app_uri, android_intent=android_intent)
 
 
 if __name__ == '__main__':

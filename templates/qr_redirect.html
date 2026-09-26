@@ -59,26 +59,41 @@
     </div>
 
     <script>
-        var destination = "{{ destination }}";
-        var appUri = "{{ app_uri }}";
-        
-        // Try to open the app
-        window.location.href = appUri;
+        var destination = {{ destination | tojson }};
+        var appUri = {{ app_uri | tojson }};
+        var androidIntent = {{ android_intent | tojson }};
 
-        // Fallback to web URL
-        var start = Date.now();
-        var timeout = setTimeout(function() {
-            var now = Date.now();
-            // If the browser was backgrounded, it would take much longer than the timeout.
-            if (now - start < 2500) {
-                window.location.href = destination;
-            }
-        }, 2000);
+        var isAndroid = /Android/i.test(navigator.userAgent);
+        var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-        // Show manual fallback button if taking too long
+        if (!appUri && !androidIntent) {
+            // Not a deep link target (e.g. standard external website)
+            window.location.replace(destination);
+        } else if (isAndroid && androidIntent) {
+            // On Android, use the Chrome Intent syntax which targets Instagram specifically
+            window.location.href = androidIntent;
+        } else if (isIOS && appUri) {
+            // On iOS, trigger the custom scheme
+            window.location.href = appUri;
+
+            // Fallback to web URL if app is not installed or doesn't open
+            var start = Date.now();
+            setTimeout(function() {
+                var now = Date.now();
+                if (now - start < 3000) {
+                    window.location.href = destination;
+                }
+            }, 2000);
+        } else {
+            // Desktop or generic browser
+            window.location.replace(destination);
+        }
+
+        // Show manual fallback button after brief delay
         setTimeout(function() {
-            document.getElementById('fallbackDiv').style.display = 'block';
-        }, 3000);
+            var fb = document.getElementById('fallbackDiv');
+            if (fb) fb.style.display = 'block';
+        }, 2500);
     </script>
 </body>
 </html>
