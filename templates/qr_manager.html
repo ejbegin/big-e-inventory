@@ -950,10 +950,92 @@
             });
         }
 
-        // Helper to trace raster or vector logo into clean SVG vector path group
-        async function traceLogoToVectorGroup(url, targetImg, doc) {
-            if (!url || url === 'none' || !targetImg) return null;
-            
+        // Helper to convert rgb(r, g, b) or other CSS colors to clean #RRGGBB hex
+        function rgbToHex(str, fallbackHex = '#000000') {
+            if (!str) return fallbackHex;
+            if (str.startsWith('#')) return str;
+            const match = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+            if (!match) return fallbackHex;
+            const r = parseInt(match[1]).toString(16).padStart(2, '0');
+            const g = parseInt(match[2]).toString(16).padStart(2, '0');
+            const b = parseInt(match[3]).toString(16).padStart(2, '0');
+            return `#${r}${g}${b}`;
+        }
+
+        // Helper to bake coordinate transforms (scale + translation) directly into SVG path 'd'
+        // and linearize any Q/C bezier curves into clean, watertight line segments (M ... L ... Z)
+        function bakeAndLinearizePath(dStr, ix, iy, scaleX, scaleY = scaleX) {
+            const tokens = dStr.match(/[a-df-z]|[-+]?[0-9]*\.?[0-9]+(?:e[-+]?[0-9]+)?/gi) || [];
+            let out = '';
+            let i = 0;
+            let curX = 0, curY = 0;
+
+            while (i < tokens.length) {
+                const cmd = tokens[i];
+                if (cmd === 'M' || cmd === 'm') {
+                    const x = parseFloat(tokens[i+1]);
+                    const y = parseFloat(tokens[i+2]);
+                    curX = x * scaleX + ix;
+                    curY = y * scaleY + iy;
+                    out += 'M ' + curX.toFixed(2) + ' ' + curY.toFixed(2) + ' ';
+                    i += 3;
+                } else if (cmd === 'L' || cmd === 'l') {
+                    const x = parseFloat(tokens[i+1]);
+                    const y = parseFloat(tokens[i+2]);
+                    curX = x * scaleX + ix;
+                    curY = y * scaleY + iy;
+                    out += 'L ' + curX.toFixed(2) + ' ' + curY.toFixed(2) + ' ';
+                    i += 3;
+                } else if (cmd === 'Q' || cmd === 'q') {
+                    const cx = parseFloat(tokens[i+1]) * scaleX + ix;
+                    const cy = parseFloat(tokens[i+2]) * scaleY + iy;
+                    const ex = parseFloat(tokens[i+3]) * scaleX + ix;
+                    const ey = parseFloat(tokens[i+4]) * scaleY + iy;
+                    
+                    const x0 = curX, y0 = curY;
+                    for (let step = 1; step <= 4; step++) {
+                        const t = step / 4;
+                        const inv = 1 - t;
+                        const px = inv * inv * x0 + 2 * inv * t * cx + t * t * ex;
+                        const py = inv * inv * y0 + 2 * inv * t * cy + t * t * ey;
+                        out += 'L ' + px.toFixed(2) + ' ' + py.toFixed(2) + ' ';
+                    }
+                    curX = ex;
+                    curY = ey;
+                    i += 5;
+                } else if (cmd === 'C' || cmd === 'c') {
+                    const c1x = parseFloat(tokens[i+1]) * scaleX + ix;
+                    const c1y = parseFloat(tokens[i+2]) * scaleY + iy;
+                    const c2x = parseFloat(tokens[i+3]) * scaleX + ix;
+                    const c2y = parseFloat(tokens[i+4]) * scaleY + iy;
+                    const ex = parseFloat(tokens[i+5]) * scaleX + ix;
+                    const ey = parseFloat(tokens[i+6]) * scaleY + iy;
+
+                    const x0 = curX, y0 = curY;
+                    for (let step = 1; step <= 5; step++) {
+                        const t = step / 5;
+                        const inv = 1 - t;
+                        const px = inv*inv*inv*x0 + 3*inv*inv*t*c1x + 3*inv*t*t*c2x + t*t*t*ex;
+                        const py = inv*inv*inv*y0 + 3*inv*inv*t*c1y + 3*inv*t*t*c2y + t*t*t*ey;
+                        out += 'L ' + px.toFixed(2) + ' ' + py.toFixed(2) + ' ';
+                    }
+                    curX = ex;
+                    curY = ey;
+                    i += 7;
+                } else if (cmd === 'Z' || cmd === 'z') {
+                    out += 'Z ';
+                    i += 1;
+                } else {
+                    i++;
+                }
+            }
+            return out.trim();
+        }
+
+        // Generates an array of 100% flat, top-level <path> elements with baked coordinates (no <g>, no transform)
+        async function generateMakerLabLogoElements(url, targetImg, doc, defaultHex = '#000000') {
+            if (!url || url === 'none' || !targetImg) return [];
+
             const ix = parseFloat(targetImg.getAttribute("x") || "98");
             const iy = parseFloat(targetImg.getAttribute("y") || "98");
             const iw = parseFloat(targetImg.getAttribute("width") || "84");
@@ -969,7 +1051,6 @@
                         const logoDoc = parser.parseFromString(svgText, "image/svg+xml");
                         const logoSvgRoot = logoDoc.querySelector("svg");
                         if (logoSvgRoot) {
-                            const logoGroup = doc.createElementNS("http://www.w3.org/2000/svg", "g");
                             let scaleX = 1, scaleY = 1;
                             const logoVb = logoSvgRoot.getAttribute("viewBox");
                             if (logoVb) {
@@ -984,25 +1065,35 @@
                                 scaleX = iw / origW;
                                 scaleY = ih / origH;
                             }
-                            logoGroup.setAttribute("transform", `translate(${ix}, ${iy}) scale(${scaleX}, ${scaleY})`);
-                            Array.from(logoSvgRoot.children).forEach(child => {
-                                if (child.tagName.toLowerCase() !== 'defs') {
-                                    logoGroup.appendChild(child.cloneNode(true));
-                                }
+
+                            const resultPaths = [];
+                            const srcPaths = logoSvgRoot.querySelectorAll("path");
+                            srcPaths.forEach(p => {
+                                const d = p.getAttribute("d");
+                                if (!d) return;
+                                const bakedD = bakeAndLinearizePath(d, ix, iy, scaleX, scaleY);
+                                if (!bakedD) return;
+                                const rawFill = p.getAttribute("fill") || defaultHex;
+                                const hexFill = rgbToHex(rawFill, defaultHex);
+                                const newPath = doc.createElementNS("http://www.w3.org/2000/svg", "path");
+                                newPath.setAttribute("fill", hexFill);
+                                newPath.setAttribute("fill-rule", "evenodd");
+                                newPath.setAttribute("d", bakedD);
+                                resultPaths.push(newPath);
                             });
-                            return logoGroup;
+                            return resultPaths;
                         }
                     }
                 } catch (e) {
-                    console.warn("Could not inline vector SVG logo:", e);
+                    console.warn("Could not parse vector SVG logo for MakerLab:", e);
                 }
-                return null;
+                return [];
             }
 
             // Case 2: Raster logo (PNG, JPG, WebP) -> Trace to pure vector paths with ImageTracer
             if (typeof ImageTracer === 'undefined') {
                 console.warn("ImageTracer not loaded, cannot vectorize logo");
-                return null;
+                return [];
             }
 
             try {
@@ -1022,7 +1113,6 @@
                 ctx.drawImage(img, 0, 0, traceDim, traceDim);
                 const imgData = ctx.getImageData(0, 0, traceDim, traceDim);
 
-                // Detect if image is grayscale/monochrome or multi-color
                 let isColor = false;
                 const data = imgData.data;
                 for (let i = 0; i < data.length; i += 16) {
@@ -1047,7 +1137,7 @@
                     mincolorratio: 0.01,
                     colorquantcycles: 2,
                     scale: 1,
-                    roundcoords: 1
+                    roundcoords: 2
                 } : {
                     corsenabled: true,
                     ltres: 0.5,
@@ -1057,7 +1147,7 @@
                     colorsampling: 0,
                     numberofcolors: 2,
                     scale: 1,
-                    roundcoords: 1
+                    roundcoords: 2
                 };
 
                 const tracedSvgStr = tracer.imagedataToSVG(imgData, options);
@@ -1065,13 +1155,11 @@
                 const tracedDoc = parser.parseFromString(tracedSvgStr, "image/svg+xml");
                 const tracedPaths = Array.from(tracedDoc.querySelectorAll("path"));
 
-                if (tracedPaths.length === 0) return null;
+                if (tracedPaths.length === 0) return [];
 
-                const logoGroup = doc.createElementNS("http://www.w3.org/2000/svg", "g");
                 const scaleFactor = iw / traceDim;
-                logoGroup.setAttribute("transform", `translate(${ix}, ${iy}) scale(${scaleFactor}, ${scaleFactor})`);
-
-                const fullBorderPrefix = `M 0 0 L ${traceDim} 0 L ${traceDim} ${traceDim} L 0 ${traceDim} L 0 0 Z`;
+                const fullBorderPrefix = `M 0 0 L ${traceDim}`;
+                const resultPaths = [];
 
                 tracedPaths.forEach(path => {
                     const opacity = path.getAttribute("opacity");
@@ -1080,28 +1168,26 @@
                     const d = (path.getAttribute("d") || "").trim();
                     const fill = (path.getAttribute("fill") || "").toLowerCase();
 
-                    // Omit outer background bounding box of the canvas
-                    const isBorderRect = d.startsWith(fullBorderPrefix);
+                    // Omit outer background canvas bounding box
+                    if (d.startsWith(fullBorderPrefix)) return;
                     const isWhiteOrLight = fill.includes('rgb(25') || fill.includes('rgb(24') || fill === '#fff' || fill === '#ffffff';
-                    if (isBorderRect && isWhiteOrLight) {
-                        return;
-                    }
+                    if (isWhiteOrLight) return;
 
-                    // For monochrome logos, also omit solid white background cutout fills
-                    if (!isColor && isWhiteOrLight) {
-                        return;
-                    }
+                    const bakedD = bakeAndLinearizePath(d, ix, iy, scaleFactor, scaleFactor);
+                    if (!bakedD) return;
 
-                    const clone = path.cloneNode(true);
-                    clone.removeAttribute("stroke");
-                    clone.removeAttribute("stroke-width");
-                    logoGroup.appendChild(clone);
+                    const hexFill = isColor ? rgbToHex(fill, defaultHex) : defaultHex;
+                    const newPath = doc.createElementNS("http://www.w3.org/2000/svg", "path");
+                    newPath.setAttribute("fill", hexFill);
+                    newPath.setAttribute("fill-rule", "evenodd");
+                    newPath.setAttribute("d", bakedD);
+                    resultPaths.push(newPath);
                 });
 
-                return logoGroup;
+                return resultPaths;
             } catch (err) {
-                console.warn("Failed to trace raster logo to vector paths:", err);
-                return null;
+                console.warn("Failed to trace raster logo to MakerLab paths:", err);
+                return [];
             }
         }
 
@@ -1132,10 +1218,10 @@
                 }
 
                 // Bambu MakerLab / Make My Sign requirements:
-                // 1. Plain SVG paths/shapes (no clipPath, no defs mask references)
-                // 2. Direct fill colors on shape elements
+                // 1. Plain, unnested top-level SVG paths/shapes (no <g>, no transform, no clipPath, no defs)
+                // 2. Direct hex fill colors on shape elements (#000000)
                 // 3. Proper viewBox and dimensions
-                // 4. True vector paths for logo (no raster images)
+                // 4. True vector closed paths for logo (no raster images, linearized polygons)
                 const width = svgElem.getAttribute("width") || "280";
                 const height = svgElem.getAttribute("height") || "280";
                 if (!svgElem.getAttribute("viewBox")) {
@@ -1175,13 +1261,15 @@
                 const defs = svgElem.querySelectorAll("defs");
                 defs.forEach(d => d.remove());
 
-                // Handle logo: convert to pure vector paths for 3D MakerLab extrusion
+                // Handle logo: convert to pure flat vector paths with baked coordinates (no <g> wrappers)
+                const fgColor = document.getElementById('qr-color-fg').value || '#000000';
                 const imageElements = svgElem.querySelectorAll("image");
                 if (currentLogoUrl && currentLogoUrl !== 'none' && imageElements.length > 0) {
                     const targetImg = imageElements[0];
-                    const logoGroup = await traceLogoToVectorGroup(currentLogoUrl, targetImg, doc);
-                    if (logoGroup) {
-                        targetImg.parentNode.insertBefore(logoGroup, targetImg);
+                    const logoPaths = await generateMakerLabLogoElements(currentLogoUrl, targetImg, doc, fgColor);
+                    if (logoPaths && logoPaths.length > 0) {
+                        // Insert each flat path directly into <svg> without any <g> wrapper
+                        logoPaths.forEach(p => targetImg.parentNode.insertBefore(p, targetImg));
                         targetImg.remove();
                     } else {
                         // Tracing fallback: embed high-resolution Base64 data URL so logo is never lost
@@ -1210,7 +1298,7 @@
                 document.body.removeChild(link);
                 URL.revokeObjectURL(blobUrl);
 
-                showAlert('Downloaded MakerLab-compatible SVG (flattened vector paths with vectorized logo)!', 'success');
+                showAlert('Downloaded MakerLab-compatible SVG (flat vector paths, no groups/transforms)!', 'success');
             } catch (err) {
                 console.error("Clean SVG export error:", err);
                 showAlert('Failed to export clean SVG, falling back to standard SVG download.', 'warning');
