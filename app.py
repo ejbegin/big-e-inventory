@@ -1082,6 +1082,14 @@ def qr_redirect(qr_id):
     save_redirects(redirects)
 
     destination = qr_data.get('destination', '')
+    
+    # Reels workaround: Direct 302 redirects allow iOS Universal Links and Android App Links 
+    # to open the Reels view natively, bypassing the custom instagram://media scheme 
+    # which incorrectly forces the legacy "videos" screen.
+    parsed = urllib.parse.urlparse(destination)
+    if 'instagram.com' in parsed.netloc and ('/reel/' in parsed.path or '/reels/' in parsed.path):
+        return redirect(destination)
+        
     app_uri, android_intent = parse_instagram_uris(destination)
 
     return render_template('qr_redirect.html', destination=destination, app_uri=app_uri, android_intent=android_intent)
