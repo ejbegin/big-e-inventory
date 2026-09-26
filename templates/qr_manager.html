@@ -12,6 +12,13 @@
     <!-- Cropper.js for Logo Resizing & Cropping -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+    <!-- ImageTracer for converting raster logos to pure vector paths for MakerLab / 3D printing -->
+    <script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.js"></script>
+    <script>
+        if (typeof ImageTracer === 'undefined') {
+            document.write('<script src="/static/imagetracer_v1.2.6.js"><\/script>');
+        }
+    </script>
     <style>
         body { background-color: #f4f6f9; font-family: system-ui, -apple-system, sans-serif; }
         .nav-pills .nav-link { border-radius: 8px; color: rgba(255,255,255,0.85); padding: 6px 14px; margin-right: 4px; transition: all 0.2s ease; }
@@ -197,10 +204,13 @@
                         
                         <div class="d-flex flex-wrap justify-content-center gap-2">
                             <button type="button" class="btn btn-outline-primary shadow-sm" id="btn-download" onclick="downloadQR('png')" disabled>
-                                <i class="bi bi-download me-1"></i> Download PNG
+                                <i class="bi bi-file-earmark-image me-1"></i> Download PNG
                             </button>
-                            <button type="button" class="btn btn-outline-secondary shadow-sm" id="btn-download-svg" onclick="downloadCleanSVG()" disabled title="Clean SVG compatible with Bambu Lab MakerLab / Make My Sign and standard vector tools">
-                                <i class="bi bi-file-earmark-code me-1"></i> Download SVG (MakerLab Ready)
+                            <button type="button" class="btn btn-outline-dark shadow-sm" id="btn-download-std-svg" onclick="downloadStandardSVG()" disabled title="Standard SVG with embedded high-resolution logo (perfect for graphic design, web, Illustrator, Inkscape)">
+                                <i class="bi bi-file-earmark-code me-1"></i> Download SVG (Standard)
+                            </button>
+                            <button type="button" class="btn btn-outline-success shadow-sm" id="btn-download-svg" onclick="downloadCleanSVG()" disabled title="100% pure flattened vector paths (compatible with Bambu Lab MakerLab / Make My Sign 3D printing)">
+                                <i class="bi bi-printer me-1"></i> Download SVG (MakerLab Ready)
                             </button>
                         </div>
                     </div>
@@ -756,6 +766,8 @@
             document.getElementById('qr-placeholder').style.display = 'block';
             document.getElementById('btn-download').disabled = true;
             document.getElementById('btn-download-svg').disabled = true;
+            const btnStdSvg = document.getElementById('btn-download-std-svg');
+            if (btnStdSvg) btnStdSvg.disabled = true;
             
             if (qrCode) {
                 document.getElementById('qr-code-preview').innerHTML = '<div class="text-muted small text-center" id="qr-placeholder">Save a redirect to generate QR code</div>';
@@ -865,6 +877,8 @@
             document.getElementById('btn-download').disabled = false;
             const btnSvg = document.getElementById('btn-download-svg');
             if (btnSvg) btnSvg.disabled = false;
+            const btnStdSvg = document.getElementById('btn-download-std-svg');
+            if (btnStdSvg) btnStdSvg.disabled = false;
 
             const options = {
                 width: 280,
@@ -912,13 +926,199 @@
             }
         }
 
+        // Helper to convert raster image URL to Base64 Data URL so SVG images are fully portable
+        async function getImageDataUrl(url) {
+            if (!url || url === 'none') return null;
+            if (url.startsWith('data:')) return url;
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'Anonymous';
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.naturalWidth || img.width;
+                        canvas.height = img.naturalHeight || img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        resolve(canvas.toDataURL('image/png'));
+                    } catch (e) {
+                        resolve(url);
+                    }
+                };
+                img.onerror = () => resolve(url);
+                img.src = url;
+            });
+        }
+
+        // Helper to trace raster or vector logo into clean SVG vector path group
+        async function traceLogoToVectorGroup(url, targetImg, doc) {
+            if (!url || url === 'none' || !targetImg) return null;
+            
+            const ix = parseFloat(targetImg.getAttribute("x") || "98");
+            const iy = parseFloat(targetImg.getAttribute("y") || "98");
+            const iw = parseFloat(targetImg.getAttribute("width") || "84");
+            const ih = parseFloat(targetImg.getAttribute("height") || "84");
+
+            // Case 1: Logo is already an SVG vector file
+            if (url.toLowerCase().endsWith('.svg')) {
+                try {
+                    const res = await fetch(url);
+                    if (res.ok) {
+                        const svgText = await res.text();
+                        const parser = new DOMParser();
+                        const logoDoc = parser.parseFromString(svgText, "image/svg+xml");
+                        const logoSvgRoot = logoDoc.querySelector("svg");
+                        if (logoSvgRoot) {
+                            const logoGroup = doc.createElementNS("http://www.w3.org/2000/svg", "g");
+                            let scaleX = 1, scaleY = 1;
+                            const logoVb = logoSvgRoot.getAttribute("viewBox");
+                            if (logoVb) {
+                                const parts = logoVb.split(/[\s,]+/).map(Number);
+                                if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+                                    scaleX = iw / parts[2];
+                                    scaleY = ih / parts[3];
+                                }
+                            } else {
+                                const origW = parseFloat(logoSvgRoot.getAttribute("width") || iw);
+                                const origH = parseFloat(logoSvgRoot.getAttribute("height") || ih);
+                                scaleX = iw / origW;
+                                scaleY = ih / origH;
+                            }
+                            logoGroup.setAttribute("transform", `translate(${ix}, ${iy}) scale(${scaleX}, ${scaleY})`);
+                            Array.from(logoSvgRoot.children).forEach(child => {
+                                if (child.tagName.toLowerCase() !== 'defs') {
+                                    logoGroup.appendChild(child.cloneNode(true));
+                                }
+                            });
+                            return logoGroup;
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Could not inline vector SVG logo:", e);
+                }
+                return null;
+            }
+
+            // Case 2: Raster logo (PNG, JPG, WebP) -> Trace to pure vector paths with ImageTracer
+            if (typeof ImageTracer === 'undefined') {
+                console.warn("ImageTracer not loaded, cannot vectorize logo");
+                return null;
+            }
+
+            try {
+                const img = new Image();
+                img.crossOrigin = 'Anonymous';
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = url;
+                });
+
+                const traceDim = 250;
+                const canvas = document.createElement('canvas');
+                canvas.width = traceDim;
+                canvas.height = traceDim;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, traceDim, traceDim);
+                const imgData = ctx.getImageData(0, 0, traceDim, traceDim);
+
+                // Detect if image is grayscale/monochrome or multi-color
+                let isColor = false;
+                const data = imgData.data;
+                for (let i = 0; i < data.length; i += 16) {
+                    if (data[i + 3] > 40) {
+                        const r = data[i], g = data[i+1], b = data[i+2];
+                        if (Math.abs(r - g) > 25 || Math.abs(r - b) > 25 || Math.abs(g - b) > 25) {
+                            isColor = true;
+                            break;
+                        }
+                    }
+                }
+
+                const tracer = new ImageTracer();
+                const options = isColor ? {
+                    corsenabled: true,
+                    ltres: 0.8,
+                    qtres: 0.8,
+                    pathomit: 4,
+                    rightangleenhance: true,
+                    colorsampling: 2,
+                    numberofcolors: 8,
+                    mincolorratio: 0.01,
+                    colorquantcycles: 2,
+                    scale: 1,
+                    roundcoords: 1
+                } : {
+                    corsenabled: true,
+                    ltres: 0.5,
+                    qtres: 0.5,
+                    pathomit: 3,
+                    rightangleenhance: true,
+                    colorsampling: 0,
+                    numberofcolors: 2,
+                    scale: 1,
+                    roundcoords: 1
+                };
+
+                const tracedSvgStr = tracer.imagedataToSVG(imgData, options);
+                const parser = new DOMParser();
+                const tracedDoc = parser.parseFromString(tracedSvgStr, "image/svg+xml");
+                const tracedPaths = Array.from(tracedDoc.querySelectorAll("path"));
+
+                if (tracedPaths.length === 0) return null;
+
+                const logoGroup = doc.createElementNS("http://www.w3.org/2000/svg", "g");
+                const scaleFactor = iw / traceDim;
+                logoGroup.setAttribute("transform", `translate(${ix}, ${iy}) scale(${scaleFactor}, ${scaleFactor})`);
+
+                const fullBorderPrefix = `M 0 0 L ${traceDim} 0 L ${traceDim} ${traceDim} L 0 ${traceDim} L 0 0 Z`;
+
+                tracedPaths.forEach(path => {
+                    const opacity = path.getAttribute("opacity");
+                    if (opacity === "0") return;
+
+                    const d = (path.getAttribute("d") || "").trim();
+                    const fill = (path.getAttribute("fill") || "").toLowerCase();
+
+                    // Omit outer background bounding box of the canvas
+                    const isBorderRect = d.startsWith(fullBorderPrefix);
+                    const isWhiteOrLight = fill.includes('rgb(25') || fill.includes('rgb(24') || fill === '#fff' || fill === '#ffffff';
+                    if (isBorderRect && isWhiteOrLight) {
+                        return;
+                    }
+
+                    // For monochrome logos, also omit solid white background cutout fills
+                    if (!isColor && isWhiteOrLight) {
+                        return;
+                    }
+
+                    const clone = path.cloneNode(true);
+                    clone.removeAttribute("stroke");
+                    clone.removeAttribute("stroke-width");
+                    logoGroup.appendChild(clone);
+                });
+
+                return logoGroup;
+            } catch (err) {
+                console.warn("Failed to trace raster logo to vector paths:", err);
+                return null;
+            }
+        }
+
         async function downloadCleanSVG() {
             if (!qrCode) return;
             const id = document.getElementById('qr-id').value || 'qr';
             const logoSelect = document.getElementById('qr-logo-preset');
             const currentLogoUrl = logoSelect ? logoSelect.value : 'none';
+            const btnSvg = document.getElementById('btn-download-svg');
+            const origHtml = btnSvg ? btnSvg.innerHTML : '';
             
             try {
+                if (btnSvg) {
+                    btnSvg.disabled = true;
+                    btnSvg.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Vectorizing...';
+                }
+
                 // Get the raw SVG blob from qr-code-styling
                 const rawBlob = await qrCode.getRawData('svg');
                 const rawText = await rawBlob.text();
@@ -975,54 +1175,25 @@
                 const defs = svgElem.querySelectorAll("defs");
                 defs.forEach(d => d.remove());
 
-                // Handle logo embedding for vector compatibility
+                // Handle logo: convert to pure vector paths for 3D MakerLab extrusion
                 const imageElements = svgElem.querySelectorAll("image");
-                if (currentLogoUrl && currentLogoUrl.toLowerCase().endsWith('.svg')) {
-                    try {
-                        // Fetch the SVG logo to integrate true vector geometry
-                        const logoRes = await fetch(currentLogoUrl);
-                        if (logoRes.ok) {
-                            const logoSvgText = await logoRes.text();
-                            const logoDoc = parser.parseFromString(logoSvgText, "image/svg+xml");
-                            const logoSvgRoot = logoDoc.querySelector("svg");
-                            
-                            if (logoSvgRoot && imageElements.length > 0) {
-                                const targetImg = imageElements[0];
-                                const ix = parseFloat(targetImg.getAttribute("x") || "98");
-                                const iy = parseFloat(targetImg.getAttribute("y") || "98");
-                                const iw = parseFloat(targetImg.getAttribute("width") || "84");
-                                const ih = parseFloat(targetImg.getAttribute("height") || "84");
-
-                                // Create group placed exactly at the center logo position
-                                const logoGroup = doc.createElementNS("http://www.w3.org/2000/svg", "g");
-                                logoGroup.setAttribute("transform", `translate(${ix}, ${iy})`);
-
-                                // If logo has viewBox, compute scale
-                                const logoVb = logoSvgRoot.getAttribute("viewBox");
-                                if (logoVb) {
-                                    const parts = logoVb.split(/[\s,]+/).map(Number);
-                                    if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
-                                        const scaleX = iw / parts[2];
-                                        const scaleY = ih / parts[3];
-                                        logoGroup.setAttribute("transform", `translate(${ix}, ${iy}) scale(${scaleX}, ${scaleY})`);
-                                    }
-                                }
-
-                                Array.from(logoSvgRoot.children).forEach(child => {
-                                    if (child.tagName.toLowerCase() !== 'defs') {
-                                        logoGroup.appendChild(child.cloneNode(true));
-                                    }
-                                });
-                                targetImg.parentNode.insertBefore(logoGroup, targetImg);
-                            }
+                if (currentLogoUrl && currentLogoUrl !== 'none' && imageElements.length > 0) {
+                    const targetImg = imageElements[0];
+                    const logoGroup = await traceLogoToVectorGroup(currentLogoUrl, targetImg, doc);
+                    if (logoGroup) {
+                        targetImg.parentNode.insertBefore(logoGroup, targetImg);
+                        targetImg.remove();
+                    } else {
+                        // Tracing fallback: embed high-resolution Base64 data URL so logo is never lost
+                        const dataUrl = await getImageDataUrl(currentLogoUrl);
+                        if (dataUrl) {
+                            targetImg.setAttribute("href", dataUrl);
+                            targetImg.setAttribute("xlink:href", dataUrl);
                         }
-                    } catch (e) {
-                        console.warn("Could not inline vector SVG logo:", e);
                     }
+                } else {
+                    imageElements.forEach(img => img.remove());
                 }
-
-                // Remove raster <image> elements (incompatible with 3D slicer/MakerLab extrusions)
-                imageElements.forEach(img => img.remove());
 
                 // Serialize the cleaned, flattened SVG
                 const serializer = new XMLSerializer();
@@ -1039,11 +1210,126 @@
                 document.body.removeChild(link);
                 URL.revokeObjectURL(blobUrl);
 
-                showAlert('Downloaded MakerLab-compatible SVG (flattened vector paths, no masks)!', 'success');
+                showAlert('Downloaded MakerLab-compatible SVG (flattened vector paths with vectorized logo)!', 'success');
             } catch (err) {
                 console.error("Clean SVG export error:", err);
                 showAlert('Failed to export clean SVG, falling back to standard SVG download.', 'warning');
                 qrCode.download({ name: "qr-" + id, extension: "svg" });
+            } finally {
+                if (btnSvg) {
+                    btnSvg.disabled = false;
+                    btnSvg.innerHTML = origHtml;
+                }
+            }
+        }
+
+        async function downloadStandardSVG() {
+            if (!qrCode) return;
+            const id = document.getElementById('qr-id').value || 'qr';
+            const logoSelect = document.getElementById('qr-logo-preset');
+            const currentLogoUrl = logoSelect ? logoSelect.value : 'none';
+            const btnStdSvg = document.getElementById('btn-download-std-svg');
+            const origHtml = btnStdSvg ? btnStdSvg.innerHTML : '';
+
+            try {
+                if (btnStdSvg) {
+                    btnStdSvg.disabled = true;
+                    btnStdSvg.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Preparing SVG...';
+                }
+
+                const rawBlob = await qrCode.getRawData('svg');
+                const rawText = await rawBlob.text();
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(rawText, "image/svg+xml");
+                const svgElem = doc.querySelector("svg");
+                if (!svgElem) {
+                    qrCode.download({ name: "qr-" + id, extension: "svg" });
+                    return;
+                }
+
+                const width = svgElem.getAttribute("width") || "280";
+                const height = svgElem.getAttribute("height") || "280";
+                if (!svgElem.getAttribute("viewBox")) {
+                    svgElem.setAttribute("viewBox", `0 0 ${parseInt(width)} ${parseInt(height)}`);
+                }
+
+                // Unwrap clipPaths so vector shapes are clean and render reliably
+                const clipPathMap = {};
+                const clipPaths = svgElem.querySelectorAll("clipPath");
+                clipPaths.forEach(cp => {
+                    const cid = cp.getAttribute("id");
+                    if (cid) {
+                        clipPathMap[cid] = Array.from(cp.children);
+                    }
+                });
+
+                const clippedRects = svgElem.querySelectorAll("rect[clip-path]");
+                clippedRects.forEach(rect => {
+                    const clipAttr = rect.getAttribute("clip-path") || "";
+                    const match = clipAttr.match(/url\(['"]?#([^'"]+)['"]?\)/);
+                    const fillColor = rect.getAttribute("fill") || "#000000";
+
+                    if (match && clipPathMap[match[1]]) {
+                        const shapes = clipPathMap[match[1]];
+                        shapes.forEach(shape => {
+                            const clone = shape.cloneNode(true);
+                            clone.setAttribute("fill", fillColor);
+                            clone.removeAttribute("clip-path");
+                            rect.parentNode.insertBefore(clone, rect);
+                        });
+                        rect.remove();
+                    }
+                });
+
+                const defs = svgElem.querySelectorAll("defs");
+                defs.forEach(d => d.remove());
+
+                // Embed logo: inlined vector paths for SVG, or Base64 Data URL for raster so it is completely self-contained
+                const imageElements = svgElem.querySelectorAll("image");
+                if (currentLogoUrl && currentLogoUrl !== 'none' && imageElements.length > 0) {
+                    const targetImg = imageElements[0];
+                    if (currentLogoUrl.toLowerCase().endsWith('.svg')) {
+                        const logoGroup = await traceLogoToVectorGroup(currentLogoUrl, targetImg, doc);
+                        if (logoGroup) {
+                            targetImg.parentNode.insertBefore(logoGroup, targetImg);
+                            targetImg.remove();
+                        }
+                    } else {
+                        const dataUrl = await getImageDataUrl(currentLogoUrl);
+                        if (dataUrl) {
+                            targetImg.setAttribute("href", dataUrl);
+                            targetImg.setAttribute("xlink:href", dataUrl);
+                        }
+                    }
+                } else {
+                    imageElements.forEach(img => img.remove());
+                }
+
+                const serializer = new XMLSerializer();
+                const fullXml = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(svgElem);
+
+                const cleanBlob = new Blob([fullXml], { type: "image/svg+xml;charset=utf-8" });
+                const blobUrl = URL.createObjectURL(cleanBlob);
+
+                const link = document.createElement("a");
+                link.href = blobUrl;
+                link.download = `qr-${id}.svg`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(blobUrl);
+
+                showAlert('Downloaded standard SVG with embedded high-resolution logo!', 'success');
+            } catch (err) {
+                console.error("Standard SVG export error:", err);
+                showAlert('Failed to export standard SVG, falling back to default download.', 'warning');
+                qrCode.download({ name: "qr-" + id, extension: "svg" });
+            } finally {
+                if (btnStdSvg) {
+                    btnStdSvg.disabled = false;
+                    btnStdSvg.innerHTML = origHtml;
+                }
             }
         }
 
