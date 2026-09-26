@@ -816,10 +816,14 @@ def api_qr():
         qr_id = data.get('id')
         if not qr_id:
             return jsonify({'error': 'Missing ID'}), 400
+        
+        existing = redirects.get(qr_id, {})
         redirects[qr_id] = {
             'name': data.get('name', ''),
             'destination': data.get('destination', ''),
-            'created_at': data.get('created_at', datetime.datetime.now(datetime.timezone.utc).isoformat())
+            'created_at': existing.get('created_at', data.get('created_at', datetime.datetime.now(datetime.timezone.utc).isoformat())),
+            'scans': existing.get('scans', 0),
+            'last_scanned': existing.get('last_scanned', None)
         }
         save_redirects(redirects)
         return jsonify({'status': 'success', 'data': redirects[qr_id]})
@@ -905,6 +909,12 @@ def qr_redirect(qr_id):
         # Redirect to homepage if QR ID is not found
         return redirect('/') 
     
+    # Increment scan count telemetry
+    qr_data['scans'] = qr_data.get('scans', 0) + 1
+    qr_data['last_scanned'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    redirects[qr_id] = qr_data
+    save_redirects(redirects)
+
     destination = qr_data.get('destination', '')
     app_uri, android_intent = parse_instagram_uris(destination)
 

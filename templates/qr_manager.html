@@ -76,7 +76,23 @@
             <div class="col-md-7">
                 <div class="card card-custom">
                     <div class="card-body p-4">
-                        <h5 class="fw-bold mb-4" id="editor-title">Create New Redirect</h5>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h5 class="fw-bold mb-0" id="editor-title">Create New Redirect</h5>
+                        </div>
+
+                        <!-- Telemetry Stats Panel (shown when editing) -->
+                        <div id="telemetry-box" class="card bg-light border-0 shadow-sm p-3 mb-4" style="display: none;">
+                            <div class="row text-center">
+                                <div class="col-6 border-end">
+                                    <div class="text-secondary small fw-semibold text-uppercase">Total Scans</div>
+                                    <div class="h3 fw-bold text-primary mb-0" id="scan-count-display">0</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-secondary small fw-semibold text-uppercase">Last Scanned</div>
+                                    <div class="small fw-semibold text-dark mt-1" id="last-scanned-display">Never</div>
+                                </div>
+                            </div>
+                        </div>
                         
                         <form id="redirect-form" onsubmit="saveRedirect(event)">
                             <div class="mb-3">
@@ -153,12 +169,12 @@
                             <div class="text-muted small text-center" id="qr-placeholder">Save a redirect to generate QR code</div>
                         </div>
                         
-                        <div class="d-flex justify-content-center gap-2">
+                        <div class="d-flex flex-wrap justify-content-center gap-2">
                             <button type="button" class="btn btn-outline-primary shadow-sm" id="btn-download" onclick="downloadQR('png')" disabled>
                                 <i class="bi bi-download me-1"></i> Download PNG
                             </button>
-                            <button type="button" class="btn btn-outline-secondary shadow-sm" id="btn-download-svg" onclick="downloadQR('svg')" disabled>
-                                <i class="bi bi-file-earmark-code me-1"></i> Download SVG
+                            <button type="button" class="btn btn-outline-secondary shadow-sm" id="btn-download-svg" onclick="downloadCleanSVG()" disabled title="Clean SVG compatible with Bambu Lab MakerLab / Make My Sign and standard vector tools">
+                                <i class="bi bi-file-earmark-code me-1"></i> Download SVG (MakerLab Ready)
                             </button>
                         </div>
                     </div>
@@ -218,15 +234,19 @@
 
             keys.forEach(id => {
                 const r = currentRedirects[id];
+                const scans = r.scans || 0;
                 const btn = document.createElement('button');
-                btn.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-start';
+                btn.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
                 btn.onclick = () => editRedirect(id);
                 btn.innerHTML = `
                     <div class="ms-2 me-auto text-break">
                         <div class="fw-bold">${r.name || id}</div>
                         <small class="text-muted">/qr/${id}</small>
                     </div>
-                    <i class="bi bi-chevron-right text-muted mt-1"></i>
+                    <span class="badge bg-primary rounded-pill px-2 py-1 me-2" title="Total Scans">
+                        <i class="bi bi-bar-chart-fill me-1"></i>${scans}
+                    </span>
+                    <i class="bi bi-chevron-right text-muted"></i>
                 `;
                 listDiv.appendChild(btn);
             });
@@ -236,9 +256,11 @@
             document.getElementById('redirect-form').reset();
             document.getElementById('qr-id').readOnly = false;
             document.getElementById('editor-title').innerText = 'Create New Redirect';
+            document.getElementById('telemetry-box').style.display = 'none';
             document.getElementById('btn-delete').style.display = 'none';
             document.getElementById('qr-placeholder').style.display = 'block';
             document.getElementById('btn-download').disabled = true;
+            document.getElementById('btn-download-svg').disabled = true;
             
             if (qrCode) {
                 document.getElementById('qr-code-preview').innerHTML = '<div class="text-muted small text-center" id="qr-placeholder">Save a redirect to generate QR code</div>';
@@ -255,6 +277,22 @@
             document.getElementById('qr-name').value = r.name || '';
             document.getElementById('qr-destination').value = r.destination || '';
             
+            // Telemetry display
+            const telemetryBox = document.getElementById('telemetry-box');
+            if (telemetryBox) {
+                telemetryBox.style.display = 'block';
+                document.getElementById('scan-count-display').innerText = r.scans || 0;
+                let lastScannedText = 'Never';
+                if (r.last_scanned) {
+                    try {
+                        lastScannedText = new Date(r.last_scanned).toLocaleString();
+                    } catch(e) {
+                        lastScannedText = r.last_scanned;
+                    }
+                }
+                document.getElementById('last-scanned-display').innerText = lastScannedText;
+            }
+
             document.getElementById('editor-title').innerText = 'Edit Redirect';
             document.getElementById('btn-delete').style.display = 'block';
             
@@ -377,6 +415,98 @@
             if (qrCode) {
                 const id = document.getElementById('qr-id').value || 'qr';
                 qrCode.download({ name: "qr-" + id, extension: format });
+            }
+        }
+
+        async function downloadCleanSVG() {
+            if (!qrCode) return;
+            const id = document.getElementById('qr-id').value || 'qr';
+            
+            try {
+                // Get the raw SVG blob from qr-code-styling
+                const rawBlob = await qrCode.getRawData('svg');
+                const rawText = await rawBlob.text();
+                
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(rawText, "image/svg+xml");
+                const svgElem = doc.querySelector("svg");
+                if (!svgElem) {
+                    qrCode.download({ name: "qr-" + id, extension: "svg" });
+                    return;
+                }
+
+                // Bambu MakerLab / Make My Sign requirements:
+                // 1. Plain SVG paths/shapes (no clipPath, no defs mask references)
+                // 2. Direct fill colors on shape elements
+                // 3. No raster <image> elements (convert logo or remove incompatible image container)
+                // 4. Proper viewBox and dimensions
+                const width = svgElem.getAttribute("width") || "280";
+                const height = svgElem.getAttribute("height") || "280";
+                if (!svgElem.getAttribute("viewBox")) {
+                    svgElem.setAttribute("viewBox", `0 0 ${parseInt(width)} ${parseInt(height)}`);
+                }
+
+                // Map clipPath id -> array of child elements
+                const clipPathMap = {};
+                const clipPaths = svgElem.querySelectorAll("clipPath");
+                clipPaths.forEach(cp => {
+                    const cid = cp.getAttribute("id");
+                    if (cid) {
+                        clipPathMap[cid] = Array.from(cp.children);
+                    }
+                });
+
+                // Find rectangles that use clip-path to apply color to shapes
+                const clippedRects = svgElem.querySelectorAll("rect[clip-path]");
+                clippedRects.forEach(rect => {
+                    const clipAttr = rect.getAttribute("clip-path") || "";
+                    const match = clipAttr.match(/url\(['"]?#([^'"]+)['"]?\)/);
+                    const fillColor = rect.getAttribute("fill") || "#000000";
+                    
+                    if (match && clipPathMap[match[1]]) {
+                        const shapes = clipPathMap[match[1]];
+                        shapes.forEach(shape => {
+                            const clone = shape.cloneNode(true);
+                            // Ensure shape has fill and no clip-path
+                            clone.setAttribute("fill", fillColor);
+                            clone.removeAttribute("clip-path");
+                            rect.parentNode.insertBefore(clone, rect);
+                        });
+                        rect.remove();
+                    }
+                });
+
+                // Remove defs containing clip paths
+                const defs = svgElem.querySelectorAll("defs");
+                defs.forEach(d => d.remove());
+
+                // Check for embedded <image> elements
+                const imageElements = svgElem.querySelectorAll("image");
+                if (imageElements.length > 0) {
+                    console.warn("Bambu MakerLab does not support embedded raster images in SVGs. Removing <image> tags for vector compatibility.");
+                    imageElements.forEach(img => img.remove());
+                }
+
+                // Serialize the cleaned, flattened SVG
+                const serializer = new XMLSerializer();
+                const cleanXml = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(svgElem);
+                
+                const cleanBlob = new Blob([cleanXml], { type: "image/svg+xml;charset=utf-8" });
+                const blobUrl = URL.createObjectURL(cleanBlob);
+                
+                const link = document.createElement("a");
+                link.href = blobUrl;
+                link.download = `qr-${id}-makerlab.svg`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(blobUrl);
+
+                showAlert('Downloaded MakerLab-compatible SVG (flattened vector paths, no masks)!', 'success');
+            } catch (err) {
+                console.error("Clean SVG export error:", err);
+                showAlert('Failed to export clean SVG, falling back to standard SVG download.', 'warning');
+                qrCode.download({ name: "qr-" + id, extension: "svg" });
             }
         }
 
