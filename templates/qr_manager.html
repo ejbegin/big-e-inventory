@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Big E Inventory - QR Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="icon" type="image/svg+xml" href="/static/bige_icon.svg">
+    <!-- QR Code Styling Library -->
+    <script type="text/javascript" src="https://unpkg.com/qr-code-styling@1.5.0/lib/qr-code-styling.js"></script>
+    <style>
+        body { background-color: #f4f6f9; font-family: system-ui, -apple-system, sans-serif; }
+        .nav-pills .nav-link { border-radius: 8px; color: rgba(255,255,255,0.85); padding: 6px 14px; margin-right: 4px; transition: all 0.2s ease; }
+        .nav-pills .nav-link:hover { background: rgba(255,255,255,0.15); color: #fff; }
+        .nav-pills .nav-link.active { background-color: #0d6efd !important; color: #fff !important; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .card-custom { border: none; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        #qr-code-preview { display: flex; justify-content: center; align-items: center; min-height: 300px; background: #fff; border-radius: 8px; border: 1px dashed #ccc; margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <nav class="navbar navbar-expand bg-dark navbar-dark mb-4 shadow-sm">
+        <div class="container-fluid px-3">
+            <a class="navbar-brand d-flex align-items-center me-3" href="/">
+                <img src="/static/bige_logo.png" alt="Big E Logo" height="34" class="me-2 rounded-circle border border-light" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'34\' height=\'34\' fill=\'white\' viewBox=\'0 0 16 16\'><circle cx=\'8\' cy=\'8\' r=\'8\'/></svg>'">
+                <span class="fw-bold d-none d-sm-inline">Big E Inventory</span>
+            </a>
+            
+            <ul class="nav nav-pills me-auto">
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/">
+                        <i class="bi bi-arrow-left-right fs-5"></i>
+                        <span class="d-none d-md-inline">Manual Transfer</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active d-flex align-items-center gap-1" href="/qr_manager">
+                        <i class="bi bi-qr-code fs-5"></i>
+                        <span class="d-none d-md-inline">QR Manager</span>
+                    </a>
+                </li>
+            </ul>
+            
+            <div class="d-flex align-items-center gap-2">
+                <a href="/settings" class="btn btn-outline-light btn-sm" title="Settings">
+                    <i class="bi bi-gear-fill"></i>
+                </a>
+                <a href="/logout" class="btn btn-outline-danger btn-sm" title="Logout">
+                    <i class="bi bi-box-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container pb-5" style="max-width: 1000px;">
+        <div id="alert-container"></div>
+
+        <div class="row g-4">
+            <!-- List Panel -->
+            <div class="col-md-5">
+                <div class="card card-custom h-100">
+                    <div class="card-header bg-white border-0 pt-4 px-4 pb-2 d-flex justify-content-between align-items-center">
+                        <h5 class="fw-bold m-0"><i class="bi bi-link-45deg me-2 text-primary"></i>Active Redirects</h5>
+                        <button class="btn btn-sm btn-primary shadow-sm" onclick="newRedirect()"><i class="bi bi-plus-lg"></i> New</button>
+                    </div>
+                    <div class="card-body p-4 pt-2">
+                        <div class="list-group" id="redirects-list">
+                            <div class="text-center py-4 text-muted">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Editor & QR Panel -->
+            <div class="col-md-7">
+                <div class="card card-custom">
+                    <div class="card-body p-4">
+                        <h5 class="fw-bold mb-4" id="editor-title">Create New Redirect</h5>
+                        
+                        <form id="redirect-form" onsubmit="saveRedirect(event)">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small text-secondary">QR ID (URL Slug)</label>
+                                <input type="text" class="form-control" id="qr-id" placeholder="e.g. front-door-sign" required pattern="[a-zA-Z0-9-_]+">
+                                <div class="form-text">This will be part of the URL: /qr/<b>front-door-sign</b></div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small text-secondary">Name / Description</label>
+                                <input type="text" class="form-control" id="qr-name" placeholder="e.g. Front Door Welcome Sign" required>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="form-label fw-bold small text-secondary">Destination URL (Instagram Post/Profile)</label>
+                                <input type="url" class="form-control" id="qr-destination" placeholder="https://www.instagram.com/p/..." required>
+                            </div>
+
+                            <div class="d-flex gap-2 mb-4">
+                                <button type="submit" class="btn btn-success fw-bold px-4"><i class="bi bi-save me-1"></i> Save Redirect</button>
+                                <button type="button" class="btn btn-danger" id="btn-delete" onclick="deleteRedirect()" style="display:none;"><i class="bi bi-trash"></i></button>
+                            </div>
+                        </form>
+
+                        <hr class="my-4 text-muted opacity-25">
+
+                        <h6 class="fw-bold mb-3"><i class="bi bi-palette me-2 text-primary"></i>QR Code Designer</h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-6">
+                                <label class="form-label small">Foreground Color</label>
+                                <input type="color" class="form-control form-control-color w-100" id="qr-color-fg" value="#000000" onchange="updateQRCode()">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small">Background Color</label>
+                                <input type="color" class="form-control form-control-color w-100" id="qr-color-bg" value="#ffffff" onchange="updateQRCode()">
+                            </div>
+                        </div>
+
+                        <div id="qr-code-preview">
+                            <div class="text-muted small text-center" id="qr-placeholder">Save a redirect to generate QR code</div>
+                        </div>
+                        
+                        <div class="text-center">
+                            <button type="button" class="btn btn-outline-primary shadow-sm" id="btn-download" onclick="downloadQR()" disabled>
+                                <i class="bi bi-download me-1"></i> Download QR Code (PNG)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentRedirects = {};
+        let qrCode = null;
+
+        async function loadRedirects() {
+            try {
+                const res = await fetch('/api/qr');
+                currentRedirects = await res.json();
+                renderList();
+            } catch (err) {
+                showAlert('Failed to load redirects', 'danger');
+            }
+        }
+
+        function renderList() {
+            const listDiv = document.getElementById('redirects-list');
+            listDiv.innerHTML = '';
+            
+            const keys = Object.keys(currentRedirects);
+            if (keys.length === 0) {
+                listDiv.innerHTML = '<div class="text-center py-4 text-muted small">No redirects found. Create one!</div>';
+                return;
+            }
+
+            keys.forEach(id => {
+                const r = currentRedirects[id];
+                const btn = document.createElement('button');
+                btn.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-start';
+                btn.onclick = () => editRedirect(id);
+                btn.innerHTML = `
+                    <div class="ms-2 me-auto text-break">
+                        <div class="fw-bold">${r.name || id}</div>
+                        <small class="text-muted">/qr/${id}</small>
+                    </div>
+                    <i class="bi bi-chevron-right text-muted mt-1"></i>
+                `;
+                listDiv.appendChild(btn);
+            });
+        }
+
+        function newRedirect() {
+            document.getElementById('redirect-form').reset();
+            document.getElementById('qr-id').readOnly = false;
+            document.getElementById('editor-title').innerText = 'Create New Redirect';
+            document.getElementById('btn-delete').style.display = 'none';
+            document.getElementById('qr-placeholder').style.display = 'block';
+            document.getElementById('btn-download').disabled = true;
+            
+            if (qrCode) {
+                document.getElementById('qr-code-preview').innerHTML = '<div class="text-muted small text-center" id="qr-placeholder">Save a redirect to generate QR code</div>';
+                qrCode = null;
+            }
+        }
+
+        function editRedirect(id) {
+            const r = currentRedirects[id];
+            if (!r) return;
+
+            document.getElementById('qr-id').value = id;
+            document.getElementById('qr-id').readOnly = true; // Don't allow changing ID once created
+            document.getElementById('qr-name').value = r.name || '';
+            document.getElementById('qr-destination').value = r.destination || '';
+            
+            document.getElementById('editor-title').innerText = 'Edit Redirect';
+            document.getElementById('btn-delete').style.display = 'block';
+            
+            updateQRCode();
+        }
+
+        async function saveRedirect(e) {
+            e.preventDefault();
+            const id = document.getElementById('qr-id').value.trim();
+            const name = document.getElementById('qr-name').value.trim();
+            const destination = document.getElementById('qr-destination').value.trim();
+
+            try {
+                const res = await fetch('/api/qr', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, name, destination })
+                });
+                
+                if (res.ok) {
+                    showAlert('Redirect saved successfully!', 'success');
+                    await loadRedirects();
+                    editRedirect(id); // Reload into edit mode
+                } else {
+                    const err = await res.json();
+                    showAlert(err.error || 'Failed to save', 'danger');
+                }
+            } catch (err) {
+                showAlert('Network error', 'danger');
+            }
+        }
+
+        async function deleteRedirect() {
+            const id = document.getElementById('qr-id').value;
+            if (!id || !confirm(`Are you sure you want to delete ${id}?`)) return;
+
+            try {
+                const res = await fetch('/api/qr', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                
+                if (res.ok) {
+                    showAlert('Redirect deleted', 'info');
+                    await loadRedirects();
+                    newRedirect();
+                } else {
+                    showAlert('Failed to delete', 'danger');
+                }
+            } catch (err) {
+                showAlert('Network error', 'danger');
+            }
+        }
+
+        function updateQRCode() {
+            const id = document.getElementById('qr-id').value;
+            if (!id || !currentRedirects[id]) return;
+
+            const targetUrl = window.location.origin + '/qr/' + id;
+            const fgColor = document.getElementById('qr-color-fg').value;
+            const bgColor = document.getElementById('qr-color-bg').value;
+
+            document.getElementById('qr-code-preview').innerHTML = '';
+            document.getElementById('btn-download').disabled = false;
+
+            qrCode = new QRCodeStyling({
+                width: 250,
+                height: 250,
+                type: "svg",
+                data: targetUrl,
+                dotsOptions: {
+                    color: fgColor,
+                    type: "rounded"
+                },
+                backgroundOptions: {
+                    color: bgColor,
+                },
+                cornersSquareOptions: {
+                    type: "extra-rounded"
+                }
+            });
+
+            qrCode.append(document.getElementById("qr-code-preview"));
+        }
+
+        function downloadQR() {
+            if (qrCode) {
+                const id = document.getElementById('qr-id').value || 'qr';
+                qrCode.download({ name: "qr-" + id, extension: "png" });
+            }
+        }
+
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alert-container');
+            alertContainer.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show shadow-sm" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>`;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setTimeout(() => { alertContainer.innerHTML = ''; }, 4000);
+        }
+
+        // Initialize
+        loadRedirects();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -86,7 +86,7 @@ def save_allowed_users(user_list):
 
 @app.before_request
 def require_login():
-    allowed_routes = ['login', 'authorize', 'static', 'access_denied']
+    allowed_routes = ['login', 'authorize', 'static', 'access_denied', 'qr_redirect']
     if request.endpoint not in allowed_routes:
         if 'user' not in session:
             return redirect(url_for('login'))
@@ -782,6 +782,79 @@ def transfer_inventory():
         if hasattr(e, 'body') and isinstance(e.body, dict) and 'errors' in e.body:
             error_msg = e.body['errors']
         return jsonify({'error': error_msg}), 500
+
+REDIRECTS_FILE = 'redirects.json'
+
+def load_redirects():
+    if os.path.exists(REDIRECTS_FILE):
+        try:
+            with open(REDIRECTS_FILE, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error reading redirects: {e}")
+    return {}
+
+def save_redirects(data):
+    try:
+        with open(REDIRECTS_FILE, 'w') as f:
+            json.dump(data, f, indent=4)
+    except Exception as e:
+        print(f"Error saving redirects: {e}")
+
+@app.route('/qr_manager')
+def qr_manager():
+    return render_template('qr_manager.html')
+
+@app.route('/api/qr', methods=['GET', 'POST', 'DELETE'])
+def api_qr():
+    redirects = load_redirects()
+    if request.method == 'GET':
+        return jsonify(redirects)
+    elif request.method == 'POST':
+        data = request.json
+        qr_id = data.get('id')
+        if not qr_id:
+            return jsonify({'error': 'Missing ID'}), 400
+        redirects[qr_id] = {
+            'name': data.get('name', ''),
+            'destination': data.get('destination', ''),
+            'created_at': data.get('created_at', datetime.datetime.now(datetime.timezone.utc).isoformat())
+        }
+        save_redirects(redirects)
+        return jsonify({'status': 'success', 'data': redirects[qr_id]})
+    elif request.method == 'DELETE':
+        data = request.json
+        qr_id = data.get('id')
+        if qr_id in redirects:
+            del redirects[qr_id]
+            save_redirects(redirects)
+            return jsonify({'status': 'success'})
+        return jsonify({'error': 'Not found'}), 404
+
+@app.route('/qr/<qr_id>')
+def qr_redirect(qr_id):
+    redirects = load_redirects()
+    qr_data = redirects.get(qr_id)
+    if not qr_data:
+        # Redirect to homepage if QR ID is not found
+        return redirect('/') 
+    
+    destination = qr_data.get('destination', '')
+    app_uri = "instagram://camera" 
+    
+    if 'instagram.com/p/' in destination:
+        parts = destination.split('instagram.com/p/')
+        if len(parts) > 1:
+            post_id = parts[1].split('/')[0]
+            app_uri = f"instagram://media?id={post_id}"
+    elif 'instagram.com/' in destination:
+        parts = destination.split('instagram.com/')
+        if len(parts) > 1:
+            username = parts[1].split('/')[0]
+            app_uri = f"instagram://user?username={username}"
+
+    return render_template('qr_redirect.html', destination=destination, app_uri=app_uri)
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecting...</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #fafafa;
+            color: #262626;
+            flex-direction: column;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border-left-color: #E1306C; /* Instagram gradient feel */
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .fallback {
+            margin-top: 20px;
+            display: none;
+            text-align: center;
+        }
+        .fallback a {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #0095f6;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        .fallback a:hover {
+            background-color: #1877f2;
+        }
+    </style>
+</head>
+<body>
+    <div class="spinner"></div>
+    <p>Opening Instagram...</p>
+    
+    <div class="fallback" id="fallbackDiv">
+        <p>If you are not redirected automatically, click below:</p>
+        <a href="{{ destination }}">Continue to Browser</a>
+    </div>
+
+    <script>
+        var destination = "{{ destination }}";
+        var appUri = "{{ app_uri }}";
+        
+        // Try to open the app
+        window.location.href = appUri;
+
+        // Fallback to web URL
+        var start = Date.now();
+        var timeout = setTimeout(function() {
+            var now = Date.now();
+            // If the browser was backgrounded, it would take much longer than the timeout.
+            if (now - start < 2500) {
+                window.location.href = destination;
+            }
+        }, 2000);
+
+        // Show manual fallback button if taking too long
+        setTimeout(function() {
+            document.getElementById('fallbackDiv').style.display = 'block';
+        }, 3000);
+    </script>
+</body>
+</html>
