@@ -12,6 +12,7 @@ import datetime
 import json
 import uuid
 import urllib.parse
+import re
 
 load_dotenv()
 
@@ -793,6 +794,54 @@ def transfer_inventory():
 
 REDIRECTS_FILE = os.path.join(DATA_DIR, 'redirects.json')
 
+def clean_url(url: str) -> str:
+    """
+    Sanitizes and normalizes user-provided URLs by addressing common input errors:
+    1. Removes trailing slashes from path (e.g. /p/123/ -> /p/123).
+    2. Strips surrounding whitespace, quotes, brackets, angle brackets.
+    3. Corrects malformed/typo schemes (e.g. htp://, htps://, https//, https:/, https:///).
+    4. Prepends https:// if scheme is missing entirely.
+    5. Collapses multiple consecutive slashes in path (e.g. //p///123 -> /p/123).
+    6. Removes trailing empty query string ('?') or fragment ('#').
+    """
+    if not url:
+        return ''
+
+    url = url.strip().strip('\'"<>[]()')
+    if not url:
+        return ''
+
+    url = re.sub(r'^(https?):/{3,}', r'\1://', url, flags=re.IGNORECASE)
+    url = re.sub(r'^(https?):/(?![/])', r'\1://', url, flags=re.IGNORECASE)
+    url = re.sub(r'^https//', 'https://', url, flags=re.IGNORECASE)
+    url = re.sub(r'^http//', 'http://', url, flags=re.IGNORECASE)
+    url = re.sub(r'^(?:htp|htps)://', 'https://', url, flags=re.IGNORECASE)
+
+    if not re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*://', url):
+        url = 'https://' + url
+
+    try:
+        parsed = urllib.parse.urlparse(url)
+        scheme = parsed.scheme.lower()
+        netloc = parsed.netloc.lower()
+        path = parsed.path
+        query = parsed.query
+        fragment = parsed.fragment
+
+        path = re.sub(r'/{2,}', '/', path)
+        if len(path) > 1 and path.endswith('/'):
+            path = path.rstrip('/')
+
+        clean = f"{scheme}://{netloc}{path}"
+        if query:
+            clean += f"?{query.rstrip('/')}"
+        if fragment:
+            clean += f"#{fragment.rstrip('/')}"
+        return clean.rstrip('/')
+    except Exception:
+        url = re.sub(r'/{2,}', '/', url)
+        return url.rstrip('/')
+
 def load_redirects():
     # If file doesn't exist yet in DATA_DIR, migrate initial redirects from repo if available
     if not os.path.exists(REDIRECTS_FILE):
@@ -833,10 +882,11 @@ def api_qr():
         if not qr_id:
             return jsonify({'error': 'Missing ID'}), 400
         
+        destination = clean_url(data.get('destination', ''))
         existing = redirects.get(qr_id, {})
         redirects[qr_id] = {
             'name': data.get('name', ''),
-            'destination': data.get('destination', ''),
+            'destination': destination,
             'created_at': existing.get('created_at', data.get('created_at', datetime.datetime.now(datetime.timezone.utc).isoformat())),
             'scans': existing.get('scans', 0),
             'last_scanned': existing.get('last_scanned', None)
@@ -1017,6 +1067,7 @@ def parse_instagram_uris(destination: str):
     Parses an Instagram URL and returns (app_uri, android_intent, is_reel, shortcode).
     Handles reels, posts, stories, user profiles, and general fallback.
     """
+    destination = clean_url(destination)
     if not destination:
         return '', '', False, None
     
@@ -1083,7 +1134,7 @@ def qr_redirect(qr_id):
     redirects[qr_id] = qr_data
     save_redirects(redirects)
 
-    destination = qr_data.get('destination', '')
+    destination = clean_url(qr_data.get('destination', ''))
     app_uri, android_intent, is_reel, shortcode = parse_instagram_uris(destination)
     name = qr_data.get('name', 'Instagram Link')
 

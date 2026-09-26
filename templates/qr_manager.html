@@ -340,6 +340,40 @@
                 .replace(/'/g, '&#39;');
         }
 
+        function cleanUrl(url) {
+            if (!url) return '';
+            
+            // 1. Trim surrounding whitespace & outer quotes/brackets
+            url = url.trim().replace(/^['"<>[\]()]+|['"<>[\]()]+$/g, '');
+            if (!url) return '';
+
+            // 2. Fix protocol typos & malformed schemes
+            url = url.replace(/^(https?):\/{3,}/i, '$1://');
+            url = url.replace(/^(https?):\/(?!\/)/i, '$1://');
+            url = url.replace(/^https\/\//i, 'https://');
+            url = url.replace(/^http\/\//i, 'http://');
+            url = url.replace(/^(?:htp|htps):\/\//i, 'https://');
+
+            // Prepend scheme if missing
+            if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url)) {
+                url = 'https://' + url;
+            }
+
+            try {
+                const parsed = new URL(url);
+                let path = parsed.pathname.replace(/\/{2,}/g, '/');
+                if (path.length > 1 && path.endsWith('/')) {
+                    path = path.replace(/\/+$/, '');
+                } else if (path === '/') {
+                    path = '';
+                }
+                let clean = parsed.origin + path + parsed.search + parsed.hash;
+                return clean.replace(/\/+$/, '');
+            } catch (e) {
+                return url.replace(/\/{2,}/g, '/').replace(/\/+$/, '');
+            }
+        }
+
         async function loadLogos() {
             try {
                 const res = await fetch('/api/qr/logos');
@@ -831,7 +865,9 @@
             e.preventDefault();
             const id = document.getElementById('qr-id').value.trim();
             const name = document.getElementById('qr-name').value.trim();
-            const destination = document.getElementById('qr-destination').value.trim();
+            const rawDest = document.getElementById('qr-destination').value;
+            const destination = cleanUrl(rawDest);
+            document.getElementById('qr-destination').value = destination;
 
             try {
                 const res = await fetch('/api/qr', {
@@ -869,10 +905,11 @@
                     await loadRedirects();
                     newRedirect();
                 } else {
-                    showAlert('Failed to delete', 'danger');
+                    const data = await res.json().catch(() => ({}));
+                    showAlert(data.error || 'Failed to delete redirect', 'danger');
                 }
             } catch (err) {
-                showAlert('Network error', 'danger');
+                showAlert('Network error while deleting redirect', 'danger');
             }
         }
 
@@ -883,7 +920,8 @@
             const r = currentRedirects[id];
             const baseUrl = 'https://inventory.madeby.gifts';
             const dynamicUrl = baseUrl + '/qr/' + id;
-            const directUrl = (r.destination || document.getElementById('qr-destination').value || '').trim();
+            const rawDirectUrl = (r.destination || document.getElementById('qr-destination').value || '');
+            const directUrl = cleanUrl(rawDirectUrl);
 
             const isDirect = document.getElementById('qr-target-mode-direct') && document.getElementById('qr-target-mode-direct').checked;
             const targetUrl = (isDirect && directUrl) ? directUrl : dynamicUrl;
@@ -1481,6 +1519,16 @@
             </div>`;
             window.scrollTo({ top: 0, behavior: 'smooth' });
             setTimeout(() => { alertContainer.innerHTML = ''; }, 4000);
+        }
+
+        // Auto-clean destination input on blur
+        const destInput = document.getElementById('qr-destination');
+        if (destInput) {
+            destInput.addEventListener('blur', () => {
+                if (destInput.value) {
+                    destInput.value = cleanUrl(destInput.value);
+                }
+            });
         }
 
         // Initialize
