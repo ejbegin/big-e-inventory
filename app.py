@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional
 import os
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+import shutil
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
 from square.client import Square
 from square.environment import SquareEnvironment
 from square.requests.catalog_object import CatalogObject_CustomAttributeDefinitionParams
@@ -27,7 +28,13 @@ google = oauth.register(
     client_kwargs={'scope': 'openid email profile'}
 )
 
-USERS_FILE = 'allowed_users.json'
+# Persistent data directory (e.g. Render Disk mounted at /var/data, or local directory)
+DATA_DIR = os.environ.get('DATA_DIR')
+if not DATA_DIR:
+    DATA_DIR = '/var/data' if os.path.exists('/var/data') else os.path.abspath(os.path.dirname(__file__))
+os.makedirs(DATA_DIR, exist_ok=True)
+
+USERS_FILE = os.path.join(DATA_DIR, 'allowed_users.json')
 ADMIN_EMAILS = [
     os.environ.get('ADMIN_EMAIL', 'ejbegin@gmail.com').strip().lower()
 ]
@@ -87,7 +94,7 @@ def save_allowed_users(user_list):
 
 @app.before_request
 def require_login():
-    allowed_routes = ['login', 'authorize', 'static', 'access_denied', 'qr_redirect']
+    allowed_routes = ['login', 'authorize', 'static', 'access_denied', 'qr_redirect', 'custom_uploaded_logo']
     if request.endpoint not in allowed_routes:
         if 'user' not in session:
             return redirect(url_for('login'))
@@ -164,7 +171,7 @@ def car_to_warehouse_redirect():
 def settings_page():
     return render_template('settings.html')
 
-CATALOG_CACHE_FILE = 'catalog_cache.json'
+CATALOG_CACHE_FILE = os.path.join(DATA_DIR, 'catalog_cache.json')
 
 def get_cached_catalog(force_refresh=False):
     if not force_refresh and os.path.exists(CATALOG_CACHE_FILE):
@@ -197,7 +204,7 @@ def get_cached_catalog(force_refresh=False):
                 pass
         return {"objects": []}
 
-SETTINGS_FILE = 'item_settings.json'
+SETTINGS_FILE = os.path.join(DATA_DIR, 'item_settings.json')
 
 def get_bige_settings_obj():
     try:
@@ -580,7 +587,7 @@ def get_inventory_counts():
         return jsonify({'error': str(e)}), 500
 
 
-HISTORY_FILE = 'transfer_history.json'
+HISTORY_FILE = os.path.join(DATA_DIR, 'transfer_history.json')
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
@@ -784,9 +791,18 @@ def transfer_inventory():
             error_msg = e.body['errors']
         return jsonify({'error': error_msg}), 500
 
-REDIRECTS_FILE = 'redirects.json'
+REDIRECTS_FILE = os.path.join(DATA_DIR, 'redirects.json')
 
 def load_redirects():
+    # If file doesn't exist yet in DATA_DIR, migrate initial redirects from repo if available
+    if not os.path.exists(REDIRECTS_FILE):
+        repo_redirects = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'redirects.json')
+        if os.path.exists(repo_redirects) and repo_redirects != REDIRECTS_FILE:
+            try:
+                shutil.copy2(repo_redirects, REDIRECTS_FILE)
+            except Exception as e:
+                print(f"Error copying initial redirects to persistent disk: {e}")
+
     if os.path.exists(REDIRECTS_FILE):
         try:
             with open(REDIRECTS_FILE, 'r') as f:
@@ -836,9 +852,13 @@ def api_qr():
             return jsonify({'status': 'success'})
         return jsonify({'error': 'Not found'}), 404
 
-LOGOS_DIR = os.path.join(app.root_path, 'static', 'logos')
+LOGOS_DIR = os.path.join(DATA_DIR, 'logos')
 os.makedirs(LOGOS_DIR, exist_ok=True)
 ALLOWED_LOGO_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.svg'}
+
+@app.route('/static/logos/<path:filename>')
+def custom_uploaded_logo(filename):
+    return send_from_directory(LOGOS_DIR, filename)
 
 @app.route('/api/qr/logos', methods=['GET', 'POST', 'DELETE'])
 def api_qr_logos():
