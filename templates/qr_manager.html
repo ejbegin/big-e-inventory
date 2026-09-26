@@ -104,24 +104,61 @@
                         <hr class="my-4 text-muted opacity-25">
 
                         <h6 class="fw-bold mb-3"><i class="bi bi-palette me-2 text-primary"></i>QR Code Designer</h6>
-                        <div class="row g-3 mb-4">
+                        
+                        <div class="row g-3 mb-3">
                             <div class="col-6">
-                                <label class="form-label small">Foreground Color</label>
+                                <label class="form-label small fw-semibold">Foreground Color</label>
                                 <input type="color" class="form-control form-control-color w-100" id="qr-color-fg" value="#000000" onchange="updateQRCode()">
                             </div>
                             <div class="col-6">
-                                <label class="form-label small">Background Color</label>
+                                <label class="form-label small fw-semibold">Background Color</label>
                                 <input type="color" class="form-control form-control-color w-100" id="qr-color-bg" value="#ffffff" onchange="updateQRCode()">
                             </div>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Dot Pattern</label>
+                                <select class="form-select form-select-sm" id="qr-dot-style" onchange="updateQRCode()">
+                                    <option value="rounded" selected>Rounded (Smooth)</option>
+                                    <option value="dots">Dots (Circles)</option>
+                                    <option value="classy">Classy</option>
+                                    <option value="classy-rounded">Classy Rounded</option>
+                                    <option value="square">Square (Classic)</option>
+                                    <option value="extra-rounded">Extra Rounded</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Corner Shape</label>
+                                <select class="form-select form-select-sm" id="qr-corner-style" onchange="updateQRCode()">
+                                    <option value="extra-rounded" selected>Extra Rounded</option>
+                                    <option value="dot">Circle / Dot</option>
+                                    <option value="square">Square</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Center Logo</label>
+                            <select class="form-select form-select-sm mb-2" id="qr-logo-preset" onchange="handleLogoPresetChange()">
+                                <option value="/static/bige_logo.png" selected>Big E Logo (Default)</option>
+                                <option value="/static/chicken_logo.png">Chicken Logo</option>
+                                <option value="none">No Logo</option>
+                                <option value="custom">Upload Custom Logo...</option>
+                            </select>
+                            <input type="file" class="form-control form-control-sm" id="qr-logo-file" accept="image/*" style="display:none;" onchange="handleCustomLogoUpload(event)">
                         </div>
 
                         <div id="qr-code-preview">
                             <div class="text-muted small text-center" id="qr-placeholder">Save a redirect to generate QR code</div>
                         </div>
                         
-                        <div class="text-center">
-                            <button type="button" class="btn btn-outline-primary shadow-sm" id="btn-download" onclick="downloadQR()" disabled>
-                                <i class="bi bi-download me-1"></i> Download QR Code (PNG)
+                        <div class="d-flex justify-content-center gap-2">
+                            <button type="button" class="btn btn-outline-primary shadow-sm" id="btn-download" onclick="downloadQR('png')" disabled>
+                                <i class="bi bi-download me-1"></i> Download PNG
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary shadow-sm" id="btn-download-svg" onclick="downloadQR('svg')" disabled>
+                                <i class="bi bi-file-earmark-code me-1"></i> Download SVG
                             </button>
                         </div>
                     </div>
@@ -133,6 +170,31 @@
     <script>
         let currentRedirects = {};
         let qrCode = null;
+        let customLogoDataUrl = null;
+
+        function handleLogoPresetChange() {
+            const preset = document.getElementById('qr-logo-preset').value;
+            const fileInput = document.getElementById('qr-logo-file');
+            if (preset === 'custom') {
+                fileInput.style.display = 'block';
+            } else {
+                fileInput.style.display = 'none';
+                customLogoDataUrl = null;
+                updateQRCode();
+            }
+        }
+
+        function handleCustomLogoUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                customLogoDataUrl = e.target.result;
+                updateQRCode();
+            };
+            reader.readAsDataURL(file);
+        }
 
         async function loadRedirects() {
             try {
@@ -256,34 +318,65 @@
             const targetUrl = baseUrl + '/qr/' + id;
             const fgColor = document.getElementById('qr-color-fg').value;
             const bgColor = document.getElementById('qr-color-bg').value;
+            const dotStyle = document.getElementById('qr-dot-style').value;
+            const cornerStyle = document.getElementById('qr-corner-style').value;
+            const logoPreset = document.getElementById('qr-logo-preset').value;
+
+            let imageSrc = null;
+            if (logoPreset === 'custom' && customLogoDataUrl) {
+                imageSrc = customLogoDataUrl;
+            } else if (logoPreset !== 'none' && logoPreset !== 'custom') {
+                imageSrc = logoPreset;
+            }
 
             document.getElementById('qr-code-preview').innerHTML = '';
             document.getElementById('btn-download').disabled = false;
+            const btnSvg = document.getElementById('btn-download-svg');
+            if (btnSvg) btnSvg.disabled = false;
 
-            qrCode = new QRCodeStyling({
-                width: 250,
-                height: 250,
+            const options = {
+                width: 280,
+                height: 280,
                 type: "svg",
                 data: targetUrl,
+                qrOptions: {
+                    errorCorrectionLevel: "H"
+                },
                 dotsOptions: {
                     color: fgColor,
-                    type: "rounded"
+                    type: dotStyle
                 },
                 backgroundOptions: {
                     color: bgColor,
                 },
                 cornersSquareOptions: {
-                    type: "extra-rounded"
+                    type: cornerStyle,
+                    color: fgColor
+                },
+                cornersDotOptions: {
+                    type: cornerStyle === 'square' ? 'square' : 'dot',
+                    color: fgColor
                 }
-            });
+            };
 
+            if (imageSrc) {
+                options.image = imageSrc;
+                options.imageOptions = {
+                    hideBackgroundDots: true,
+                    imageSize: 0.35,
+                    margin: 4,
+                    crossOrigin: "anonymous"
+                };
+            }
+
+            qrCode = new QRCodeStyling(options);
             qrCode.append(document.getElementById("qr-code-preview"));
         }
 
-        function downloadQR() {
+        function downloadQR(format = 'png') {
             if (qrCode) {
                 const id = document.getElementById('qr-id').value || 'qr';
-                qrCode.download({ name: "qr-" + id, extension: "png" });
+                qrCode.download({ name: "qr-" + id, extension: format });
             }
         }
 
