@@ -252,7 +252,8 @@
             const id = document.getElementById('qr-id').value;
             if (!id || !currentRedirects[id]) return;
 
-            const targetUrl = window.location.origin + '/qr/' + id;
+            const baseUrl = 'https://inventory.madeby.gifts';
+            const targetUrl = baseUrl + '/qr/' + id;
             const fgColor = document.getElementById('qr-color-fg').value;
             const bgColor = document.getElementById('qr-color-bg').value;
 
