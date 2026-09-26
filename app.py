@@ -836,6 +836,108 @@ def api_qr():
             return jsonify({'status': 'success'})
         return jsonify({'error': 'Not found'}), 404
 
+LOGOS_DIR = os.path.join(app.root_path, 'static', 'logos')
+os.makedirs(LOGOS_DIR, exist_ok=True)
+ALLOWED_LOGO_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.svg'}
+
+@app.route('/api/qr/logos', methods=['GET', 'POST', 'DELETE'])
+def api_qr_logos():
+    if request.method == 'GET':
+        logos = [
+            {'url': '/static/bige_logo.png', 'name': 'Big E Logo (Default)', 'deletable': False},
+            {'url': '/static/chicken_logo.png', 'name': 'Chicken Logo', 'deletable': False}
+        ]
+        if os.path.exists(LOGOS_DIR):
+            for fname in sorted(os.listdir(LOGOS_DIR)):
+                ext = os.path.splitext(fname)[1].lower()
+                if ext in ALLOWED_LOGO_EXTENSIONS:
+                    clean_name = os.path.splitext(fname)[0].replace('_', ' ').title()
+                    logos.append({
+                        'url': f'/static/logos/{fname}',
+                        'name': clean_name,
+                        'filename': fname,
+                        'deletable': True
+                    })
+        return jsonify(logos)
+
+    elif request.method == 'POST':
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+        file = request.files['file']
+        if not file.filename:
+            return jsonify({'error': 'Empty filename'}), 400
+
+        name_part, ext = os.path.splitext(file.filename)
+        ext = ext.lower()
+        if ext not in ALLOWED_LOGO_EXTENSIONS:
+            return jsonify({'error': f'Unsupported file type: {ext}. Allowed: PNG, JPG, WEBP, SVG'}), 400
+
+        # Check file size (limit to 5MB before processing)
+        file.seek(0, os.SEEK_END)
+        size = file.tell()
+        file.seek(0)
+        if size > 5 * 1024 * 1024:
+            return jsonify({'error': 'File exceeds maximum limit of 5MB'}), 400
+
+        # Sanitize filename
+        safe_base = "".join(c for c in name_part if c.isalnum() or c in ('-', '_')).strip() or 'logo'
+        unique_name = f"{safe_base}_{uuid.uuid4().hex[:6]}{ext}"
+        save_path = os.path.join(LOGOS_DIR, unique_name)
+
+        if ext == '.svg':
+            # Basic SVG sanitization: check for dangerous script tags
+            content = file.read().decode('utf-8', errors='ignore')
+            if '<script' in content.lower() or 'javascript:' in content.lower():
+                return jsonify({'error': 'SVG contains disallowed script or executable content'}), 400
+            with open(save_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+        else:
+            # Process raster images with PIL: normalize & resize if too massive (> 1000px)
+            from PIL import Image
+            try:
+                img = Image.open(file.stream)
+                # Convert palette or RGBA appropriately
+                if img.mode not in ('RGB', 'RGBA'):
+                    img = img.convert('RGBA')
+                # Resize if excessively large to keep QR lightweight & crisp
+                max_dim = 800
+                if img.width > max_dim or img.height > max_dim:
+                    img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+                # Save as PNG
+                png_name = f"{safe_base}_{uuid.uuid4().hex[:6]}.png"
+                save_path = os.path.join(LOGOS_DIR, png_name)
+                img.save(save_path, format='PNG', optimize=True)
+                unique_name = png_name
+            except Exception as e:
+                return jsonify({'error': f'Failed to process image: {str(e)}'}), 400
+
+        display_name = safe_base.replace('_', ' ').replace('-', ' ').title()
+        return jsonify({
+            'status': 'success',
+            'logo': {
+                'url': f'/static/logos/{unique_name}',
+                'name': display_name,
+                'filename': unique_name,
+                'deletable': True
+            }
+        })
+
+    elif request.method == 'DELETE':
+        data = request.json or {}
+        filename = data.get('filename')
+        if not filename or '/' in filename or '\\' in filename or '..' in filename:
+            return jsonify({'error': 'Invalid filename'}), 400
+        
+        target_path = os.path.join(LOGOS_DIR, filename)
+        if os.path.exists(target_path):
+            try:
+                os.remove(target_path)
+                return jsonify({'status': 'success'})
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Logo not found'}), 404
+
+
 def shortcode_to_media_id(shortcode: str) -> Optional[str]:
     alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
     media_id = 0

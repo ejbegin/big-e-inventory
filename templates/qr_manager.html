@@ -9,6 +9,9 @@
     <link rel="icon" type="image/svg+xml" href="/static/bige_icon.svg">
     <!-- QR Code Styling Library -->
     <script type="text/javascript" src="https://unpkg.com/qr-code-styling@1.5.0/lib/qr-code-styling.js"></script>
+    <!-- Cropper.js for Logo Resizing & Cropping -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
     <style>
         body { background-color: #f4f6f9; font-family: system-ui, -apple-system, sans-serif; }
         .nav-pills .nav-link { border-radius: 8px; color: rgba(255,255,255,0.85); padding: 6px 14px; margin-right: 4px; transition: all 0.2s ease; }
@@ -155,14 +158,27 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label small fw-semibold">Center Logo</label>
-                            <select class="form-select form-select-sm mb-2" id="qr-logo-preset" onchange="handleLogoPresetChange()">
-                                <option value="/static/bige_logo.png" selected>Big E Logo (Default)</option>
-                                <option value="/static/chicken_logo.png">Chicken Logo</option>
-                                <option value="none">No Logo</option>
-                                <option value="custom">Upload Custom Logo...</option>
-                            </select>
-                            <input type="file" class="form-control form-control-sm" id="qr-logo-file" accept="image/*" style="display:none;" onchange="handleCustomLogoUpload(event)">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small fw-semibold mb-0">Center Logo</label>
+                                <button type="button" class="btn btn-link btn-sm text-decoration-none p-0" id="btn-delete-logo" onclick="deleteCurrentLogo()" style="display:none; font-size: 0.8rem; color: #dc3545;">
+                                    <i class="bi bi-trash"></i> Delete from presets
+                                </button>
+                            </div>
+                            <div class="input-group input-group-sm mb-2">
+                                <select class="form-select form-select-sm" id="qr-logo-preset" onchange="handleLogoPresetChange()">
+                                    <option value="/static/bige_logo.png" selected>Big E Logo (Default)</option>
+                                    <option value="/static/chicken_logo.png">Chicken Logo</option>
+                                    <option value="none">No Logo</option>
+                                </select>
+                                <button type="button" class="btn btn-outline-primary" onclick="triggerLogoUpload()" title="Upload new logo">
+                                    <i class="bi bi-upload me-1"></i> Upload
+                                </button>
+                            </div>
+                            <!-- Hidden file input for logo upload with 5MB restriction -->
+                            <input type="file" id="qr-logo-file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none;" onchange="handleLogoFileSelected(event)">
+                            <div class="form-text small text-muted" style="font-size: 0.75rem;">
+                                Max 5MB. Supports PNG, JPG, WebP, SVG. Includes square cropping & sizing editor.
+                            </div>
                         </div>
 
                         <div id="qr-code-preview">
@@ -183,33 +199,273 @@
         </div>
     </div>
 
+    <!-- Crop & Resize Modal -->
+    <div class="modal fade" id="cropModal" tabindex="-1" aria-labelledby="cropModalLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header">
+                    <h6 class="modal-title fw-bold" id="cropModalLabel"><i class="bi bi-crop me-2 text-primary"></i>Crop & Resize Logo</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <div style="max-height: 380px; width: 100%; background: #222; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 8px;">
+                        <img id="crop-image" src="" alt="To Crop" style="max-width: 100%; display: block;">
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <small class="text-muted"><i class="bi bi-info-circle me-1"></i>1:1 aspect ratio optimized for QR center</small>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary" onclick="rotateCropper(-90)" title="Rotate Left"><i class="bi bi-arrow-counterclockwise"></i></button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="rotateCropper(90)" title="Rotate Right"><i class="bi bi-arrow-clockwise"></i></button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="resetCropper()" title="Reset"><i class="bi bi-arrow-repeat"></i></button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light p-2">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-primary fw-bold" id="btn-save-crop" onclick="saveCroppedLogo()">
+                        <i class="bi bi-check-lg me-1"></i> Save to Presets & Use
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentRedirects = {};
         let qrCode = null;
-        let customLogoDataUrl = null;
+        let availableLogos = [];
+        let cropper = null;
+        let pendingUploadFileName = 'logo.png';
+        let cropModalInstance = null;
 
-        function handleLogoPresetChange() {
-            const preset = document.getElementById('qr-logo-preset').value;
-            const fileInput = document.getElementById('qr-logo-file');
-            if (preset === 'custom') {
-                fileInput.style.display = 'block';
-            } else {
-                fileInput.style.display = 'none';
-                customLogoDataUrl = null;
-                updateQRCode();
+        async function loadLogos() {
+            try {
+                const res = await fetch('/api/qr/logos');
+                availableLogos = await res.json();
+                renderLogoSelect();
+            } catch (err) {
+                console.error('Failed to load logo list:', err);
             }
         }
 
-        function handleCustomLogoUpload(event) {
+        function renderLogoSelect(selectedUrl = null) {
+            const select = document.getElementById('qr-logo-preset');
+            const prevVal = selectedUrl || select.value || '/static/bige_logo.png';
+            select.innerHTML = '';
+
+            availableLogos.forEach(logo => {
+                const opt = document.createElement('option');
+                opt.value = logo.url;
+                opt.textContent = logo.name;
+                opt.dataset.deletable = logo.deletable ? 'true' : 'false';
+                if (logo.filename) opt.dataset.filename = logo.filename;
+                select.appendChild(opt);
+            });
+
+            // None option
+            const noneOpt = document.createElement('option');
+            noneOpt.value = 'none';
+            noneOpt.textContent = 'No Logo';
+            select.appendChild(noneOpt);
+
+            // Re-select prior option if still available
+            let matchFound = false;
+            Array.from(select.options).forEach(opt => {
+                if (opt.value === prevVal) {
+                    opt.selected = true;
+                    matchFound = true;
+                }
+            });
+            if (!matchFound && select.options.length > 0) {
+                select.options[0].selected = true;
+            }
+
+            handleLogoPresetChange();
+        }
+
+        function handleLogoPresetChange() {
+            const select = document.getElementById('qr-logo-preset');
+            const selectedOpt = select.options[select.selectedIndex];
+            const deleteBtn = document.getElementById('btn-delete-logo');
+
+            if (selectedOpt && selectedOpt.dataset.deletable === 'true') {
+                deleteBtn.style.display = 'inline-block';
+            } else {
+                deleteBtn.style.display = 'none';
+            }
+
+            updateQRCode();
+        }
+
+        function triggerLogoUpload() {
+            const fileInput = document.getElementById('qr-logo-file');
+            fileInput.value = '';
+            fileInput.click();
+        }
+
+        function handleLogoFileSelected(event) {
             const file = event.target.files[0];
             if (!file) return;
 
+            // Restrict file size (max 5MB)
+            const MAX_SIZE = 5 * 1024 * 1024;
+            if (file.size > MAX_SIZE) {
+                showAlert('File exceeds maximum limit of 5MB. Please choose a smaller image.', 'danger');
+                return;
+            }
+
+            // Disallow CSS / HTML or executable formats
+            const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+            if (!allowedTypes.includes(file.type)) {
+                showAlert('Unsupported file type. Please upload PNG, JPG, WebP, or SVG.', 'danger');
+                return;
+            }
+
+            pendingUploadFileName = file.name;
+
+            // For SVG files, upload directly (vector doesn't need pixel-based cropping)
+            if (file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')) {
+                uploadLogoDirect(file);
+                return;
+            }
+
+            // For raster images, open crop & resize editor
             const reader = new FileReader();
             reader.onload = function(e) {
-                customLogoDataUrl = e.target.result;
-                updateQRCode();
+                openCropperModal(e.target.result);
             };
             reader.readAsDataURL(file);
+        }
+
+        function openCropperModal(dataUrl) {
+            const image = document.getElementById('crop-image');
+            image.src = dataUrl;
+
+            if (!cropModalInstance) {
+                cropModalInstance = new bootstrap.Modal(document.getElementById('cropModal'));
+            }
+            cropModalInstance.show();
+
+            const modalElem = document.getElementById('cropModal');
+            const onShown = function() {
+                if (cropper) cropper.destroy();
+                cropper = new Cropper(image, {
+                    aspectRatio: 1, // QR center logos look best square
+                    viewMode: 1,
+                    autoCropArea: 0.9,
+                    responsive: true,
+                    background: false
+                });
+                modalElem.removeEventListener('shown.bs.modal', onShown);
+            };
+            modalElem.addEventListener('shown.bs.modal', onShown);
+        }
+
+        function rotateCropper(degree) {
+            if (cropper) cropper.rotate(degree);
+        }
+
+        function resetCropper() {
+            if (cropper) cropper.reset();
+        }
+
+        async function saveCroppedLogo() {
+            if (!cropper) return;
+            const btn = document.getElementById('btn-save-crop');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+            try {
+                // Get cropped canvas resized to max 500x500 for fast QR rendering
+                const canvas = cropper.getCroppedCanvas({
+                    width: 500,
+                    height: 500,
+                    imageSmoothingEnabled: true,
+                    imageSmoothingQuality: 'high'
+                });
+
+                canvas.toBlob(async function(blob) {
+                    const formData = new FormData();
+                    const cleanName = pendingUploadFileName.replace(/\.[^/.]+$/, "") + ".png";
+                    formData.append('file', blob, cleanName);
+
+                    const res = await fetch('/api/qr/logos', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save to Presets & Use';
+
+                    if (res.ok) {
+                        const result = await res.json();
+                        cropModalInstance.hide();
+                        showAlert('Logo saved to options!', 'success');
+                        await loadLogos();
+                        renderLogoSelect(result.logo.url);
+                    } else {
+                        const err = await res.json();
+                        showAlert(err.error || 'Failed to save logo', 'danger');
+                    }
+                }, 'image/png');
+            } catch (err) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save to Presets & Use';
+                showAlert('Error processing image crop', 'danger');
+            }
+        }
+
+        async function uploadLogoDirect(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                showAlert('Uploading SVG logo...', 'info');
+                const res = await fetch('/api/qr/logos', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (res.ok) {
+                    const result = await res.json();
+                    showAlert('SVG Logo saved to presets!', 'success');
+                    await loadLogos();
+                    renderLogoSelect(result.logo.url);
+                } else {
+                    const err = await res.json();
+                    showAlert(err.error || 'Failed to upload logo', 'danger');
+                }
+            } catch (err) {
+                showAlert('Network error uploading logo', 'danger');
+            }
+        }
+
+        async function deleteCurrentLogo() {
+            const select = document.getElementById('qr-logo-preset');
+            const selectedOpt = select.options[select.selectedIndex];
+            if (!selectedOpt || selectedOpt.dataset.deletable !== 'true') return;
+
+            const filename = selectedOpt.dataset.filename;
+            if (!confirm(`Delete "${selectedOpt.textContent}" from saved logo presets?`)) return;
+
+            try {
+                const res = await fetch('/api/qr/logos', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename })
+                });
+
+                if (res.ok) {
+                    showAlert('Logo preset deleted', 'info');
+                    await loadLogos();
+                    renderLogoSelect('/static/bige_logo.png');
+                } else {
+                    const err = await res.json();
+                    showAlert(err.error || 'Failed to delete logo', 'danger');
+                }
+            } catch (err) {
+                showAlert('Network error', 'danger');
+            }
         }
 
         async function loadRedirects() {
@@ -358,12 +614,11 @@
             const bgColor = document.getElementById('qr-color-bg').value;
             const dotStyle = document.getElementById('qr-dot-style').value;
             const cornerStyle = document.getElementById('qr-corner-style').value;
-            const logoPreset = document.getElementById('qr-logo-preset').value;
+            const logoSelect = document.getElementById('qr-logo-preset');
+            const logoPreset = logoSelect ? logoSelect.value : 'none';
 
             let imageSrc = null;
-            if (logoPreset === 'custom' && customLogoDataUrl) {
-                imageSrc = customLogoDataUrl;
-            } else if (logoPreset !== 'none' && logoPreset !== 'custom') {
+            if (logoPreset && logoPreset !== 'none') {
                 imageSrc = logoPreset;
             }
 
@@ -421,6 +676,8 @@
         async function downloadCleanSVG() {
             if (!qrCode) return;
             const id = document.getElementById('qr-id').value || 'qr';
+            const logoSelect = document.getElementById('qr-logo-preset');
+            const currentLogoUrl = logoSelect ? logoSelect.value : 'none';
             
             try {
                 // Get the raw SVG blob from qr-code-styling
@@ -438,8 +695,8 @@
                 // Bambu MakerLab / Make My Sign requirements:
                 // 1. Plain SVG paths/shapes (no clipPath, no defs mask references)
                 // 2. Direct fill colors on shape elements
-                // 3. No raster <image> elements (convert logo or remove incompatible image container)
-                // 4. Proper viewBox and dimensions
+                // 3. Proper viewBox and dimensions
+                // 4. True vector paths for logo (no raster images)
                 const width = svgElem.getAttribute("width") || "280";
                 const height = svgElem.getAttribute("height") || "280";
                 if (!svgElem.getAttribute("viewBox")) {
@@ -467,7 +724,6 @@
                         const shapes = clipPathMap[match[1]];
                         shapes.forEach(shape => {
                             const clone = shape.cloneNode(true);
-                            // Ensure shape has fill and no clip-path
                             clone.setAttribute("fill", fillColor);
                             clone.removeAttribute("clip-path");
                             rect.parentNode.insertBefore(clone, rect);
@@ -480,12 +736,54 @@
                 const defs = svgElem.querySelectorAll("defs");
                 defs.forEach(d => d.remove());
 
-                // Check for embedded <image> elements
+                // Handle logo embedding for vector compatibility
                 const imageElements = svgElem.querySelectorAll("image");
-                if (imageElements.length > 0) {
-                    console.warn("Bambu MakerLab does not support embedded raster images in SVGs. Removing <image> tags for vector compatibility.");
-                    imageElements.forEach(img => img.remove());
+                if (currentLogoUrl && currentLogoUrl.toLowerCase().endsWith('.svg')) {
+                    try {
+                        // Fetch the SVG logo to integrate true vector geometry
+                        const logoRes = await fetch(currentLogoUrl);
+                        if (logoRes.ok) {
+                            const logoSvgText = await logoRes.text();
+                            const logoDoc = parser.parseFromString(logoSvgText, "image/svg+xml");
+                            const logoSvgRoot = logoDoc.querySelector("svg");
+                            
+                            if (logoSvgRoot && imageElements.length > 0) {
+                                const targetImg = imageElements[0];
+                                const ix = parseFloat(targetImg.getAttribute("x") || "98");
+                                const iy = parseFloat(targetImg.getAttribute("y") || "98");
+                                const iw = parseFloat(targetImg.getAttribute("width") || "84");
+                                const ih = parseFloat(targetImg.getAttribute("height") || "84");
+
+                                // Create group placed exactly at the center logo position
+                                const logoGroup = doc.createElementNS("http://www.w3.org/2000/svg", "g");
+                                logoGroup.setAttribute("transform", `translate(${ix}, ${iy})`);
+
+                                // If logo has viewBox, compute scale
+                                const logoVb = logoSvgRoot.getAttribute("viewBox");
+                                if (logoVb) {
+                                    const parts = logoVb.split(/[\s,]+/).map(Number);
+                                    if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+                                        const scaleX = iw / parts[2];
+                                        const scaleY = ih / parts[3];
+                                        logoGroup.setAttribute("transform", `translate(${ix}, ${iy}) scale(${scaleX}, ${scaleY})`);
+                                    }
+                                }
+
+                                Array.from(logoSvgRoot.children).forEach(child => {
+                                    if (child.tagName.toLowerCase() !== 'defs') {
+                                        logoGroup.appendChild(child.cloneNode(true));
+                                    }
+                                });
+                                targetImg.parentNode.insertBefore(logoGroup, targetImg);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn("Could not inline vector SVG logo:", e);
+                    }
                 }
+
+                // Remove raster <image> elements (incompatible with 3D slicer/MakerLab extrusions)
+                imageElements.forEach(img => img.remove());
 
                 // Serialize the cleaned, flattened SVG
                 const serializer = new XMLSerializer();
@@ -522,6 +820,7 @@
 
         // Initialize
         loadRedirects();
+        loadLogos();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
