@@ -7,9 +7,10 @@ dependencies = [
     "squareup",
     "python-dotenv",
     "authlib",
-    "requests"
+    "requests",
+    "pillow>=12.3.0",
 ]
 
 [tool.pyright]
 venvPath = "."
-venv = "venv"
+venv = ".venv"

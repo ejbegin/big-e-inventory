@@ -855,6 +855,23 @@ def api_qr():
 LOGOS_DIR = os.path.join(DATA_DIR, 'logos')
 os.makedirs(LOGOS_DIR, exist_ok=True)
 ALLOWED_LOGO_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.svg'}
+LOGOS_META_FILE = os.path.join(DATA_DIR, 'logos_metadata.json')
+
+def load_logos_metadata() -> Dict[str, Any]:
+    if os.path.exists(LOGOS_META_FILE):
+        try:
+            with open(LOGOS_META_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error reading logos metadata: {e}")
+    return {}
+
+def save_logos_metadata(meta: Dict[str, Any]):
+    try:
+        with open(LOGOS_META_FILE, 'w', encoding='utf-8') as f:
+            json.dump(meta, f, indent=2)
+    except Exception as e:
+        print(f"Error saving logos metadata: {e}")
 
 @app.route('/static/logos/<path:filename>')
 def custom_uploaded_logo(filename):
@@ -864,19 +881,29 @@ def custom_uploaded_logo(filename):
 def api_qr_logos():
     if request.method == 'GET':
         logos = [
-            {'url': '/static/bige_logo.png', 'name': 'Big E Logo (Default)', 'deletable': False},
-            {'url': '/static/chicken_logo.png', 'name': 'Chicken Logo', 'deletable': False}
+            {'url': '/static/bige_logo.png', 'name': 'Big E Logo (Default)', 'filename': 'bige_logo.png', 'deletable': False},
+            {'url': '/static/chicken_logo.png', 'name': 'Chicken Logo', 'filename': 'chicken_logo.png', 'deletable': False}
         ]
+        meta = load_logos_metadata()
         if os.path.exists(LOGOS_DIR):
             for fname in sorted(os.listdir(LOGOS_DIR)):
                 ext = os.path.splitext(fname)[1].lower()
                 if ext in ALLOWED_LOGO_EXTENSIONS:
-                    clean_name = os.path.splitext(fname)[0].replace('_', ' ').title()
+                    file_meta = meta.get(fname, {})
+                    clean_name = file_meta.get('name')
+                    if not clean_name:
+                        base_no_ext = os.path.splitext(fname)[0]
+                        parts = base_no_ext.rsplit('_', 1)
+                        if len(parts) == 2 and len(parts[1]) == 6:
+                            clean_name = parts[0].replace('_', ' ').replace('-', ' ').title()
+                        else:
+                            clean_name = base_no_ext.replace('_', ' ').replace('-', ' ').title()
                     logos.append({
                         'url': f'/static/logos/{fname}',
                         'name': clean_name,
                         'filename': fname,
-                        'deletable': True
+                        'deletable': True,
+                        'created_at': file_meta.get('created_at')
                     })
         return jsonify(logos)
 
@@ -887,6 +914,7 @@ def api_qr_logos():
         if not file.filename:
             return jsonify({'error': 'Empty filename'}), 400
 
+        custom_name = request.form.get('name', '').strip()
         name_part, ext = os.path.splitext(file.filename)
         ext = ext.lower()
         if ext not in ALLOWED_LOGO_EXTENSIONS:
@@ -900,7 +928,7 @@ def api_qr_logos():
             return jsonify({'error': 'File exceeds maximum limit of 5MB'}), 400
 
         # Sanitize filename
-        safe_base = "".join(c for c in name_part if c.isalnum() or c in ('-', '_')).strip() or 'logo'
+        safe_base = "".join(c for c in (custom_name or name_part) if c.isalnum() or c in ('-', '_')).strip() or 'logo'
         unique_name = f"{safe_base}_{uuid.uuid4().hex[:6]}{ext}"
         save_path = os.path.join(LOGOS_DIR, unique_name)
 
@@ -912,26 +940,38 @@ def api_qr_logos():
             with open(save_path, 'w', encoding='utf-8') as f:
                 f.write(content)
         else:
-            # Process raster images with PIL: normalize & resize if too massive (> 1000px)
-            from PIL import Image
+            # Process raster images: try PIL if available, or write directly
+            saved_with_pil = False
             try:
+                from PIL import Image
                 img = Image.open(file.stream)
-                # Convert palette or RGBA appropriately
                 if img.mode not in ('RGB', 'RGBA'):
                     img = img.convert('RGBA')
-                # Resize if excessively large to keep QR lightweight & crisp
                 max_dim = 800
                 if img.width > max_dim or img.height > max_dim:
                     img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
-                # Save as PNG
                 png_name = f"{safe_base}_{uuid.uuid4().hex[:6]}.png"
                 save_path = os.path.join(LOGOS_DIR, png_name)
                 img.save(save_path, format='PNG', optimize=True)
                 unique_name = png_name
+                saved_with_pil = True
             except Exception as e:
-                return jsonify({'error': f'Failed to process image: {str(e)}'}), 400
+                print(f"PIL processing skipped or failed ({e}), saving file directly")
 
-        display_name = safe_base.replace('_', ' ').replace('-', ' ').title()
+            if not saved_with_pil:
+                file.seek(0)
+                file.save(save_path)
+
+        display_name = custom_name if custom_name else safe_base.replace('_', ' ').replace('-', ' ').title()
+        
+        # Save custom name to metadata manifest
+        meta = load_logos_metadata()
+        meta[unique_name] = {
+            'name': display_name,
+            'created_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
+        }
+        save_logos_metadata(meta)
+
         return jsonify({
             'status': 'success',
             'logo': {
@@ -952,6 +992,10 @@ def api_qr_logos():
         if os.path.exists(target_path):
             try:
                 os.remove(target_path)
+                meta = load_logos_metadata()
+                if filename in meta:
+                    del meta[filename]
+                    save_logos_metadata(meta)
                 return jsonify({'status': 'success'})
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
