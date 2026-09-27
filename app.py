@@ -1455,20 +1455,28 @@ def api_cards():
             return jsonify({'status': 'success'})
         return jsonify({'error': 'Not found'}), 404
 
+def find_card(slug):
+    cards = load_cards()
+    if not slug:
+        return None, None
+    slug_clean = slug.strip().lower()
+    for k, v in cards.items():
+        if k.strip().lower() == slug_clean:
+            return k, v
+    return None, None
+
 @app.route('/c/<slug>')
 def card_landing(slug):
-    cards = load_cards()
-    card_data = cards.get(slug)
+    matched_slug, card_data = find_card(slug)
     if not card_data:
         return "Card not found", 404
-    return render_template('card_landing.html', slug=slug, card=card_data)
+    return render_template('card_landing.html', slug=matched_slug, card=card_data)
 
 from flask import make_response
 
 @app.route('/c/<slug>/vcf')
 def card_vcf(slug):
-    cards = load_cards()
-    card = cards.get(slug)
+    matched_slug, card = find_card(slug)
     if not card:
         return "Card not found", 404
 
