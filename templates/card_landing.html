@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ card.name }} - Digital Business Card</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --theme-color: {{ card.theme_color or '#0d6efd' }};
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, rgba(0,0,0,0.8), rgba(0,0,0,0.95)), 
+                        radial-gradient(circle at top left, var(--theme-color) 0%, transparent 40%),
+                        radial-gradient(circle at bottom right, var(--theme-color) 0%, transparent 40%);
+            background-attachment: fixed;
+            background-color: #111;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .card-container {
+            width: 100%;
+            max-width: 420px;
+            animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 40px 30px;
+            text-align: center;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.4);
+        }
+
+        .profile-img-wrap {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 20px;
+        }
+
+        .profile-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 30px rgba(var(--theme-color-rgb), 0.5);
+            transition: transform 0.3s ease;
+        }
+        
+        .profile-img:hover {
+            transform: scale(1.05);
+        }
+
+        h1 {
+            font-weight: 700;
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+            letter-spacing: -0.5px;
+        }
+
+        .title {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1rem;
+            font-weight: 400;
+            margin-bottom: 25px;
+        }
+
+        .bio {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: rgba(255, 255, 255, 0.85);
+            margin-bottom: 30px;
+        }
+
+        .btn-save {
+            background-color: var(--theme-color);
+            color: #fff;
+            border: none;
+            border-radius: 50px;
+            padding: 14px 28px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 25px rgba(0,0,0,0.4);
+            color: #fff;
+        }
+
+        .btn-save::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(rgba(255,255,255,0.2), transparent);
+            border-radius: 50px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .btn-save:hover::after {
+            opacity: 1;
+        }
+
+        .link-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+
+        .action-link {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            color: #fff;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .action-link:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+            transform: scale(1.02);
+        }
+
+        .action-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            margin-right: 15px;
+            color: var(--theme-color);
+        }
+
+        .action-text {
+            flex-grow: 1;
+            text-align: left;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .social-row {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .social-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 1.3rem;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .social-icon:hover {
+            background: var(--theme-color);
+            transform: translateY(-3px);
+            color: #fff;
+        }
+
+        @keyframes slideUpFade {
+            0% { opacity: 0; transform: translateY(30px) scale(0.95); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* Subtle pulsing effect for the save button */
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(var(--theme-color-rgb), 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(var(--theme-color-rgb), 0); }
+            100% { box-shadow: 0 0 0 0 rgba(var(--theme-color-rgb), 0); }
+        }
+        
+        .pulse-btn {
+            animation: pulse 2s infinite;
+        }
+    </style>
+    
+    <script>
+        // Convert hex to rgb for rgba usage in CSS
+        document.addEventListener("DOMContentLoaded", () => {
+            const hex = "{{ card.theme_color or '#0d6efd' }}";
+            let r = 13, g = 110, b = 253; // Default blue
+            if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
+                let c = hex.substring(1).split('');
+                if(c.length== 3){
+                    c= [c[0], c[0], c[1], c[1], c[2], c[2]];
+                }
+                c = '0x'+c.join('');
+                r = (c>>16)&255;
+                g = (c>>8)&255;
+                b = c&255;
+            }
+            document.documentElement.style.setProperty('--theme-color-rgb', `${r}, ${g}, ${b}`);
+        });
+    </script>
+</head>
+<body>
+
+    <div class="card-container">
+        <div class="glass-panel">
+            
+            <div class="profile-img-wrap">
+                <img src="{{ card.profile_picture or '/static/bige_logo.png' }}" alt="{{ card.name }}" class="profile-img">
+            </div>
+
+            <h1>{{ card.name }}</h1>
+            {% if card.title %}
+            <div class="title">{{ card.title }}</div>
+            {% endif %}
+
+            {% if card.bio %}
+            <div class="bio">{{ card.bio }}</div>
+            {% endif %}
+
+            <a href="/c/{{ slug }}/vcf" class="btn-save pulse-btn">
+                <i class="bi bi-person-plus-fill"></i> Save Contact
+            </a>
+
+            <div class="link-grid">
+                {% if card.phone %}
+                <a href="tel:{{ card.phone }}" class="action-link">
+                    <div class="action-icon"><i class="bi bi-telephone-fill"></i></div>
+                    <div class="action-text">Call {{ card.phone }}</div>
+                    <i class="bi bi-chevron-right text-muted opacity-50"></i>
+                </a>
+                <a href="sms:{{ card.phone }}" class="action-link">
+                    <div class="action-icon"><i class="bi bi-chat-fill"></i></div>
+                    <div class="action-text">Text {{ card.phone }}</div>
+                    <i class="bi bi-chevron-right text-muted opacity-50"></i>
+                </a>
+                {% endif %}
+
+                {% if card.email %}
+                <a href="mailto:{{ card.email }}" class="action-link">
+                    <div class="action-icon"><i class="bi bi-envelope-fill"></i></div>
+                    <div class="action-text">Email Me</div>
+                    <i class="bi bi-chevron-right text-muted opacity-50"></i>
+                </a>
+                {% endif %}
+
+                {% if card.website %}
+                <a href="{{ card.website if card.website.startswith('http') else 'https://' + card.website }}" target="_blank" class="action-link">
+                    <div class="action-icon"><i class="bi bi-globe2"></i></div>
+                    <div class="action-text">Visit Website</div>
+                    <i class="bi bi-chevron-right text-muted opacity-50"></i>
+                </a>
+                {% endif %}
+
+                {% if card.address %}
+                <a href="https://maps.google.com/?q={{ card.address | urlencode }}" target="_blank" class="action-link">
+                    <div class="action-icon"><i class="bi bi-geo-alt-fill"></i></div>
+                    <div class="action-text">Get Directions</div>
+                    <i class="bi bi-chevron-right text-muted opacity-50"></i>
+                </a>
+                {% endif %}
+            </div>
+
+            <div class="social-row">
+                {% if card.instagram %}
+                <a href="{{ card.instagram if card.instagram.startswith('http') else 'https://instagram.com/' + card.instagram }}" target="_blank" class="social-icon" title="Instagram">
+                    <i class="bi bi-instagram"></i>
+                </a>
+                {% endif %}
+                
+                {% if card.facebook %}
+                <a href="{{ card.facebook if card.facebook.startswith('http') else 'https://facebook.com/' + card.facebook }}" target="_blank" class="social-icon" title="Facebook">
+                    <i class="bi bi-facebook"></i>
+                </a>
+                {% endif %}
+
+                {% if card.linkedin %}
+                <a href="{{ card.linkedin if card.linkedin.startswith('http') else 'https://linkedin.com/in/' + card.linkedin }}" target="_blank" class="social-icon" title="LinkedIn">
+                    <i class="bi bi-linkedin"></i>
+                </a>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+
+</body>
+</html>

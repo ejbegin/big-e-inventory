@@ -95,7 +95,7 @@ def save_allowed_users(user_list):
 
 @app.before_request
 def require_login():
-    allowed_routes = ['login', 'authorize', 'static', 'access_denied', 'qr_redirect', 'custom_uploaded_logo']
+    allowed_routes = ['login', 'authorize', 'static', 'access_denied', 'qr_redirect', 'custom_uploaded_logo', 'card_landing', 'card_vcf']
     if request.endpoint not in allowed_routes:
         if 'user' not in session:
             return redirect(url_for('login'))
@@ -1394,6 +1394,104 @@ def qr_redirect(qr_id):
                            subtitle=meta['subtitle'],
                            domain=meta['domain'])
 
+
+CARDS_FILE = os.path.join(DATA_DIR, 'cards.json')
+
+def load_cards():
+    if os.path.exists(CARDS_FILE):
+        try:
+            with open(CARDS_FILE, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error reading cards: {e}")
+    return {}
+
+def save_cards(data):
+    try:
+        with open(CARDS_FILE, 'w') as f:
+            json.dump(data, f, indent=4)
+    except Exception as e:
+        print(f"Error saving cards: {e}")
+
+@app.route('/card_manager')
+def card_manager():
+    return render_template('card_manager.html')
+
+@app.route('/api/cards', methods=['GET', 'POST', 'DELETE'])
+def api_cards():
+    cards = load_cards()
+    if request.method == 'GET':
+        resp = jsonify(cards)
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return resp
+    elif request.method == 'POST':
+        data = request.json or {}
+        card_id = data.get('id')
+        if not card_id:
+            return jsonify({'error': 'Missing ID'}), 400
+        
+        cards[card_id] = {
+            'name': data.get('name', ''),
+            'title': data.get('title', ''),
+            'phone': data.get('phone', ''),
+            'email': data.get('email', ''),
+            'website': data.get('website', ''),
+            'address': data.get('address', ''),
+            'instagram': data.get('instagram', ''),
+            'facebook': data.get('facebook', ''),
+            'linkedin': data.get('linkedin', ''),
+            'bio': data.get('bio', ''),
+            'profile_picture': data.get('profile_picture', '/static/bige_logo.png'),
+            'theme_color': data.get('theme_color', '#000000'),
+        }
+        save_cards(cards)
+        return jsonify({'status': 'success', 'data': cards[card_id]})
+    elif request.method == 'DELETE':
+        data = request.json or {}
+        card_id = data.get('id')
+        if card_id in cards:
+            del cards[card_id]
+            save_cards(cards)
+            return jsonify({'status': 'success'})
+        return jsonify({'error': 'Not found'}), 404
+
+@app.route('/c/<slug>')
+def card_landing(slug):
+    cards = load_cards()
+    card_data = cards.get(slug)
+    if not card_data:
+        return "Card not found", 404
+    return render_template('card_landing.html', slug=slug, card=card_data)
+
+from flask import make_response
+
+@app.route('/c/<slug>/vcf')
+def card_vcf(slug):
+    cards = load_cards()
+    card = cards.get(slug)
+    if not card:
+        return "Card not found", 404
+
+    vcf_content = f"""BEGIN:VCARD
+VERSION:3.0
+N:;{card.get('name', '')};;;
+FN:{card.get('name', '')}
+ORG:Big E Inventory
+TITLE:{card.get('title', '')}
+TEL;TYPE=CELL:{card.get('phone', '')}
+EMAIL:{card.get('email', '')}
+URL:{card.get('website', '')}
+ADR;TYPE=WORK:;;{card.get('address', '')};;;;
+NOTE:{card.get('bio', '')}
+X-SOCIALPROFILE;type=instagram:{card.get('instagram', '')}
+X-SOCIALPROFILE;type=facebook:{card.get('facebook', '')}
+X-SOCIALPROFILE;type=linkedin:{card.get('linkedin', '')}
+END:VCARD"""
+    
+    response = make_response(vcf_content)
+    response.headers["Content-Type"] = "text/vcard"
+    response.headers["Content-Disposition"] = f"attachment; filename=\"{slug}.vcf\""
+    return response
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
