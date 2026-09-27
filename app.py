@@ -889,7 +889,13 @@ def api_qr():
             'destination': destination,
             'created_at': existing.get('created_at', data.get('created_at', datetime.datetime.now(datetime.timezone.utc).isoformat())),
             'scans': existing.get('scans', 0),
-            'last_scanned': existing.get('last_scanned', None)
+            'last_scanned': existing.get('last_scanned', None),
+            'logo': data.get('logo', existing.get('logo', '/static/bige_logo.png')),
+            'color_fg': data.get('color_fg', existing.get('color_fg', '#000000')),
+            'color_bg': data.get('color_bg', existing.get('color_bg', '#ffffff')),
+            'dot_style': data.get('dot_style', existing.get('dot_style', 'rounded')),
+            'corner_style': data.get('corner_style', existing.get('corner_style', 'extra-rounded')),
+            'target_mode': data.get('target_mode', existing.get('target_mode', 'dynamic'))
         }
         save_redirects(redirects)
         return jsonify({'status': 'success', 'data': redirects[qr_id]})

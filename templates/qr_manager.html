@@ -107,7 +107,7 @@
                         <form id="redirect-form" onsubmit="saveRedirect(event)">
                             <div class="mb-3">
                                 <label class="form-label fw-bold small text-secondary">QR ID (URL Slug)</label>
-                                <input type="text" class="form-control" id="qr-id" placeholder="e.g. front-door-sign" required pattern="[a-zA-Z0-9-_]+">
+                                <input type="text" class="form-control" id="qr-id" placeholder="e.g. front-door-sign" required pattern="[a-zA-Z0-9-_]+" oninput="updateQRCode()">
                                 <div class="form-text">This will be part of the URL: /qr/<b>front-door-sign</b></div>
                             </div>
                             
@@ -118,7 +118,7 @@
                             
                             <div class="mb-4">
                                 <label class="form-label fw-bold small text-secondary">Destination URL (Instagram Post/Profile)</label>
-                                <input type="url" class="form-control" id="qr-destination" placeholder="https://www.instagram.com/p/..." required>
+                                <input type="url" class="form-control" id="qr-destination" placeholder="https://www.instagram.com/p/..." required oninput="updateQRCode()">
                             </div>
 
                             <div class="d-flex gap-2 mb-4">
@@ -151,6 +151,8 @@
                                 <i class="bi bi-bar-chart-fill me-1"></i><b>Dynamic:</b> Tracks scan counts & lets you change destination anytime without reprinting. Opens via 1-tap Reels bridge card.
                             </div>
                         </div>
+
+                        <div class="row g-3 mb-3">
                             <div class="col-6">
                                 <label class="form-label small fw-semibold">Foreground Color</label>
                                 <input type="color" class="form-control form-control-color w-100" id="qr-color-fg" value="#000000" onchange="updateQRCode()">
@@ -823,6 +825,12 @@
             document.getElementById('btn-download-svg').disabled = true;
             const btnStdSvg = document.getElementById('btn-download-std-svg');
             if (btnStdSvg) btnStdSvg.disabled = true;
+
+            if (document.getElementById('qr-color-fg')) document.getElementById('qr-color-fg').value = '#000000';
+            if (document.getElementById('qr-color-bg')) document.getElementById('qr-color-bg').value = '#ffffff';
+            if (document.getElementById('qr-dot-style')) document.getElementById('qr-dot-style').value = 'rounded';
+            if (document.getElementById('qr-corner-style')) document.getElementById('qr-corner-style').value = 'extra-rounded';
+            renderLogoSelect('/static/bige_logo.png');
             
             if (qrCode) {
                 document.getElementById('qr-code-preview').innerHTML = '<div class="text-muted small text-center" id="qr-placeholder">Save a redirect to generate QR code</div>';
@@ -839,6 +847,24 @@
             document.getElementById('qr-name').value = r.name || '';
             document.getElementById('qr-destination').value = r.destination || '';
             
+            // Set Target Mode
+            if (r.target_mode === 'direct') {
+                const dirRadio = document.getElementById('qr-target-mode-direct');
+                if (dirRadio) dirRadio.checked = true;
+            } else {
+                const dynRadio = document.getElementById('qr-target-mode-dynamic');
+                if (dynRadio) dynRadio.checked = true;
+            }
+
+            // Set Colors & Styles
+            if (document.getElementById('qr-color-fg')) document.getElementById('qr-color-fg').value = r.color_fg || '#000000';
+            if (document.getElementById('qr-color-bg')) document.getElementById('qr-color-bg').value = r.color_bg || '#ffffff';
+            if (document.getElementById('qr-dot-style')) document.getElementById('qr-dot-style').value = r.dot_style || 'rounded';
+            if (document.getElementById('qr-corner-style')) document.getElementById('qr-corner-style').value = r.corner_style || 'extra-rounded';
+
+            // Set Logo preset dropdown
+            renderLogoSelect(r.logo || '/static/bige_logo.png');
+
             // Telemetry display
             const telemetryBox = document.getElementById('telemetry-box');
             if (telemetryBox) {
@@ -869,11 +895,19 @@
             const destination = cleanUrl(rawDest);
             document.getElementById('qr-destination').value = destination;
 
+            const logo = document.getElementById('qr-logo-preset') ? document.getElementById('qr-logo-preset').value : '/static/bige_logo.png';
+            const color_fg = document.getElementById('qr-color-fg') ? document.getElementById('qr-color-fg').value : '#000000';
+            const color_bg = document.getElementById('qr-color-bg') ? document.getElementById('qr-color-bg').value : '#ffffff';
+            const dot_style = document.getElementById('qr-dot-style') ? document.getElementById('qr-dot-style').value : 'rounded';
+            const corner_style = document.getElementById('qr-corner-style') ? document.getElementById('qr-corner-style').value : 'extra-rounded';
+            const isDirect = document.getElementById('qr-target-mode-direct') && document.getElementById('qr-target-mode-direct').checked;
+            const target_mode = isDirect ? 'direct' : 'dynamic';
+
             try {
                 const res = await fetch('/api/qr', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id, name, destination })
+                    body: JSON.stringify({ id, name, destination, logo, color_fg, color_bg, dot_style, corner_style, target_mode })
                 });
                 
                 if (res.ok) {
@@ -914,13 +948,12 @@
         }
 
         function updateQRCode() {
-            const id = document.getElementById('qr-id').value;
-            if (!id || !currentRedirects[id]) return;
+            const id = document.getElementById('qr-id').value.trim();
+            if (!id) return;
 
-            const r = currentRedirects[id];
             const baseUrl = 'https://inventory.madeby.gifts';
             const dynamicUrl = baseUrl + '/qr/' + id;
-            const rawDirectUrl = (r.destination || document.getElementById('qr-destination').value || '');
+            const rawDirectUrl = document.getElementById('qr-destination').value || '';
             const directUrl = cleanUrl(rawDirectUrl);
 
             const isDirect = document.getElementById('qr-target-mode-direct') && document.getElementById('qr-target-mode-direct').checked;
