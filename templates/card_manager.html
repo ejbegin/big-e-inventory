@@ -21,34 +21,45 @@
 <body>
     <!-- Top Navigation Bar -->
     <nav class="navbar navbar-expand bg-dark navbar-dark mb-4 shadow-sm">
-        <div class="container-fluid px-3">
-            <a class="navbar-brand d-flex align-items-center me-3" href="/">
-                <img src="/static/bige_logo.png" alt="Big E Logo" height="34" class="me-2 rounded-circle border border-light" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'34\' height=\'34\' fill=\'white\' viewBox=\'0 0 16 16\'><circle cx=\'8\' cy=\'8\' r=\'8\'/></svg>'">
-                <span class="fw-bold d-none d-sm-inline">Big E Inventory</span>
+        <div class="container-fluid px-2 px-sm-3">
+            <a class="navbar-brand d-flex align-items-center me-2 me-sm-3" href="/" title="Made By">
+                <img src="/static/madeby_logo.png" alt="Made By" height="34" class="rounded-circle border border-light" onerror="this.src='/static/bige_logo.png'">
             </a>
             
             <ul class="nav nav-pills me-auto">
                 <li class="nav-item">
-                    <a class="nav-link d-flex align-items-center gap-1" href="/">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/" title="Manual Transfer">
                         <i class="bi bi-arrow-left-right fs-5"></i>
-                        <span class="d-none d-md-inline">Manual Transfer</span>
+                        <span class="d-none d-md-inline">Manual</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link d-flex align-items-center gap-1" href="/qr_manager">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/warehouse_to_car" title="House &rarr; Car">
+                        <i class="bi bi-truck fs-5"></i>
+                        <span class="d-none d-md-inline">Car</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/car_to_bige" title="Car &rarr; Big E">
+                        <img src="/static/chicken_logo.png" width="22" height="22" class="rounded-circle" alt="Big E" onerror="this.src='/static/bige_icon.svg'">
+                        <span class="d-none d-md-inline">Big E</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/qr_manager" title="QR Manager">
                         <i class="bi bi-qr-code fs-5"></i>
-                        <span class="d-none d-md-inline">QR Manager</span>
+                        <span class="d-none d-md-inline">QR Codes</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link active d-flex align-items-center gap-1" href="/card_manager">
+                    <a class="nav-link active d-flex align-items-center gap-1" href="/card_manager" title="Business Cards">
                         <i class="bi bi-person-vcard fs-5"></i>
-                        <span class="d-none d-md-inline">Business Cards</span>
+                        <span class="d-none d-md-inline">Cards</span>
                     </a>
                 </li>
             </ul>
             
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-1 gap-sm-2">
                 <a href="/settings" class="btn btn-outline-light btn-sm" title="Settings">
                     <i class="bi bi-gear-fill"></i>
                 </a>
