@@ -875,9 +875,11 @@ def qr_manager():
 def api_qr():
     redirects = load_redirects()
     if request.method == 'GET':
-        return jsonify(redirects)
+        resp = jsonify(redirects)
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return resp
     elif request.method == 'POST':
-        data = request.json
+        data = request.json or {}
         qr_id = data.get('id')
         if not qr_id:
             return jsonify({'error': 'Missing ID'}), 400
@@ -885,8 +887,8 @@ def api_qr():
         destination = clean_url(data.get('destination', ''))
         existing = redirects.get(qr_id, {})
         redirects[qr_id] = {
-            'name': data.get('name', ''),
-            'destination': destination,
+            'name': data.get('name', existing.get('name', '')),
+            'destination': destination if destination else existing.get('destination', ''),
             'created_at': existing.get('created_at', data.get('created_at', datetime.datetime.now(datetime.timezone.utc).isoformat())),
             'scans': existing.get('scans', 0),
             'last_scanned': existing.get('last_scanned', None),
@@ -898,14 +900,18 @@ def api_qr():
             'target_mode': data.get('target_mode', existing.get('target_mode', 'dynamic'))
         }
         save_redirects(redirects)
-        return jsonify({'status': 'success', 'data': redirects[qr_id]})
+        resp = jsonify({'status': 'success', 'data': redirects[qr_id]})
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return resp
     elif request.method == 'DELETE':
-        data = request.json
+        data = request.json or {}
         qr_id = data.get('id')
         if qr_id in redirects:
             del redirects[qr_id]
             save_redirects(redirects)
-            return jsonify({'status': 'success'})
+            resp = jsonify({'status': 'success'})
+            resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            return resp
         return jsonify({'error': 'Not found'}), 404
 
 LOGOS_DIR = os.path.join(DATA_DIR, 'logos')
@@ -961,7 +967,9 @@ def api_qr_logos():
                         'deletable': True,
                         'created_at': file_meta.get('created_at')
                     })
-        return jsonify(logos)
+        resp = jsonify(logos)
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return resp
 
     elif request.method == 'POST':
         if 'file' not in request.files:
@@ -1126,6 +1134,229 @@ def parse_instagram_uris(destination: str):
         
     return "instagram://app", f"intent://{parsed.netloc}{parsed.path}#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end", False, None
 
+def get_redirect_metadata(destination: str, raw_name: Optional[str] = None) -> dict:
+    """
+    Analyzes destination URL to determine platform branding, custom styling,
+    badges, deep link schemes, and user-facing labels.
+    Supports Instagram, TikTok, Facebook, YouTube, X/Twitter, and Generic Websites.
+    """
+    destination = clean_url(destination)
+    if not destination:
+        return {
+            'platform': 'generic',
+            'platform_name': 'Website',
+            'theme_class': 'theme-generic',
+            'icon_class': 'bi bi-globe2',
+            'badge_icon': 'bi bi-link-45deg',
+            'badge_text': 'Link',
+            'btn_text': 'Open Link',
+            'btn_icon': 'bi bi-box-arrow-up-right',
+            'secondary_text': 'Copy Link',
+            'subtitle': 'Tap below to open destination.',
+            'domain': '',
+            'app_uri': '',
+            'android_intent': None,
+            'is_reel': False,
+            'shortcode': None,
+            'item_name': raw_name or 'Web Link'
+        }
+
+    parsed = urllib.parse.urlparse(destination)
+    netloc = parsed.netloc.lower()
+    path = parsed.path.strip('/')
+    segments = path.split('/') if path else []
+    query = parsed.query
+    query_str = f"?{query}" if query else ""
+    domain = netloc.replace('www.', '')
+
+    # 1. Instagram
+    if 'instagram.com' in netloc or 'instagr.am' in netloc:
+        app_uri, android_intent, is_reel, shortcode = parse_instagram_uris(destination)
+        badge_icon = "bi bi-camera-reels-fill" if is_reel else "bi bi-instagram"
+        icon_class = "bi bi-camera-reels-fill" if is_reel else "bi bi-instagram"
+        badge_text = "Instagram Reel" if is_reel else "Instagram"
+        subtitle = "Tap below to open directly in the Instagram Reels player." if is_reel else "Tap below to open in the Instagram app."
+        
+        if segments:
+            first = segments[0].lower()
+            if first == 'p':
+                badge_text = "Instagram Post"
+                subtitle = "Tap below to view this post on Instagram."
+            elif first == 'stories':
+                badge_text = "Instagram Story"
+                subtitle = "Tap below to view this story on Instagram."
+            elif first not in ('reel', 'reels', 'explore', 'direct', 'accounts', 'legal', 'about', 'developer', 'tv'):
+                badge_text = f"@{first}"
+                subtitle = f"Tap below to view @{first} on Instagram."
+
+        item_name = raw_name.strip() if (raw_name and raw_name.strip() and raw_name.strip() != 'Instagram Link') else 'Instagram'
+
+        return {
+            'platform': 'instagram',
+            'platform_name': 'Instagram',
+            'theme_class': 'theme-instagram',
+            'icon_class': icon_class,
+            'badge_icon': badge_icon,
+            'badge_text': badge_text,
+            'btn_text': 'Open in Instagram App',
+            'btn_icon': 'bi bi-instagram',
+            'secondary_text': 'Continue in Browser',
+            'subtitle': subtitle,
+            'domain': domain,
+            'app_uri': app_uri,
+            'android_intent': android_intent,
+            'is_reel': is_reel,
+            'shortcode': shortcode,
+            'item_name': item_name
+        }
+
+    # 2. TikTok
+    if 'tiktok.com' in netloc:
+        is_video = 'video' in path or 'vm.tiktok.com' in netloc or 'vt.tiktok.com' in netloc
+        badge_text = "TikTok Video" if is_video else "TikTok"
+        badge_icon = "bi bi-play-circle-fill" if is_video else "bi bi-tiktok"
+        subtitle = "Tap below to watch this video on TikTok." if is_video else "Tap below to open in the TikTok app."
+        if path.startswith('@'):
+            user = path.split('/')[0]
+            if is_video:
+                subtitle = f"Tap below to watch {user} on TikTok."
+            else:
+                badge_text = user
+                subtitle = f"Tap below to view {user} on TikTok."
+            
+        android_intent = f"intent://{parsed.netloc}/{path}{query_str}#Intent;package=com.zhiliaoapp.musically;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
+        item_name = raw_name.strip() if (raw_name and raw_name.strip() and raw_name.strip() != 'Instagram Link') else 'TikTok'
+
+        return {
+            'platform': 'tiktok',
+            'platform_name': 'TikTok',
+            'theme_class': 'theme-tiktok',
+            'icon_class': 'bi bi-tiktok',
+            'badge_icon': badge_icon,
+            'badge_text': badge_text,
+            'btn_text': 'Open in TikTok App',
+            'btn_icon': 'bi bi-tiktok',
+            'secondary_text': 'Continue in Browser',
+            'subtitle': subtitle,
+            'domain': domain,
+            'app_uri': destination,
+            'android_intent': android_intent,
+            'is_reel': False,
+            'shortcode': None,
+            'item_name': item_name
+        }
+
+    # 3. Facebook
+    if 'facebook.com' in netloc or 'fb.watch' in netloc or 'fb.com' in netloc:
+        is_reel = 'reel' in path or 'reels' in path or 'watch' in path or 'fb.watch' in netloc
+        badge_text = "Facebook Reel" if is_reel else ("Facebook Post" if 'posts' in path else "Facebook")
+        badge_icon = "bi bi-camera-reels-fill" if is_reel else "bi bi-facebook"
+        subtitle = "Tap below to watch this Reel on Facebook." if is_reel else "Tap below to open in the Facebook app."
+        
+        android_intent = f"intent://{parsed.netloc}/{path}{query_str}#Intent;package=com.facebook.katana;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
+        app_uri = f"fb://facewebmodal/f?href={urllib.parse.quote(destination)}"
+        item_name = raw_name.strip() if (raw_name and raw_name.strip() and raw_name.strip() != 'Instagram Link') else 'Facebook'
+
+        return {
+            'platform': 'facebook',
+            'platform_name': 'Facebook',
+            'theme_class': 'theme-facebook',
+            'icon_class': 'bi bi-facebook',
+            'badge_icon': badge_icon,
+            'badge_text': badge_text,
+            'btn_text': 'Open in Facebook App',
+            'btn_icon': 'bi bi-facebook',
+            'secondary_text': 'Continue in Browser',
+            'subtitle': subtitle,
+            'domain': domain,
+            'app_uri': app_uri,
+            'android_intent': android_intent,
+            'is_reel': is_reel,
+            'shortcode': None,
+            'item_name': item_name
+        }
+
+    # 4. YouTube
+    if 'youtube.com' in netloc or 'youtu.be' in netloc:
+        is_short = 'shorts' in path
+        badge_text = "YouTube Short" if is_short else "YouTube Video"
+        badge_icon = "bi bi-play-circle-fill"
+        subtitle = "Tap below to watch this Short on YouTube." if is_short else "Tap below to watch on YouTube."
+        
+        android_intent = f"intent://{parsed.netloc}/{path}{query_str}#Intent;package=com.google.android.youtube;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
+        app_uri = f"vnd.youtube://{parsed.netloc}/{path}{query_str}"
+        item_name = raw_name.strip() if (raw_name and raw_name.strip() and raw_name.strip() != 'Instagram Link') else 'YouTube'
+
+        return {
+            'platform': 'youtube',
+            'platform_name': 'YouTube',
+            'theme_class': 'theme-youtube',
+            'icon_class': 'bi bi-youtube',
+            'badge_icon': badge_icon,
+            'badge_text': badge_text,
+            'btn_text': 'Open in YouTube App',
+            'btn_icon': 'bi bi-youtube',
+            'secondary_text': 'Continue in Browser',
+            'subtitle': subtitle,
+            'domain': domain,
+            'app_uri': app_uri,
+            'android_intent': android_intent,
+            'is_reel': False,
+            'shortcode': None,
+            'item_name': item_name
+        }
+
+    # 5. X / Twitter
+    if 'twitter.com' in netloc or 'x.com' in netloc:
+        badge_text = "Post on X" if 'status' in path else "X"
+        badge_icon = "bi bi-twitter-x"
+        subtitle = "Tap below to view this post on X." if 'status' in path else "Tap below to open on X."
+        
+        android_intent = f"intent://{parsed.netloc}/{path}{query_str}#Intent;package=com.twitter.android;scheme=https;S.browser_fallback_url={urllib.parse.quote(destination)};end"
+        app_uri = destination
+        item_name = raw_name.strip() if (raw_name and raw_name.strip() and raw_name.strip() != 'Instagram Link') else 'X'
+
+        return {
+            'platform': 'x',
+            'platform_name': 'X',
+            'theme_class': 'theme-x',
+            'icon_class': 'bi bi-twitter-x',
+            'badge_icon': badge_icon,
+            'badge_text': badge_text,
+            'btn_text': 'Open on X',
+            'btn_icon': 'bi bi-twitter-x',
+            'secondary_text': 'Continue in Browser',
+            'subtitle': subtitle,
+            'domain': domain,
+            'app_uri': app_uri,
+            'android_intent': android_intent,
+            'is_reel': False,
+            'shortcode': None,
+            'item_name': item_name
+        }
+
+    # 6. Generic Website
+    item_name = raw_name.strip() if (raw_name and raw_name.strip() and raw_name.strip() != 'Instagram Link') else (domain or 'Web Link')
+
+    return {
+        'platform': 'generic',
+        'platform_name': 'Website',
+        'theme_class': 'theme-generic',
+        'icon_class': 'bi bi-globe2',
+        'badge_icon': 'bi bi-link-45deg',
+        'badge_text': domain or 'Web Link',
+        'btn_text': 'Open Website',
+        'btn_icon': 'bi bi-box-arrow-up-right',
+        'secondary_text': 'Copy Link',
+        'subtitle': f"Tap below to visit {domain}." if domain else "Tap below to open the destination link.",
+        'domain': domain,
+        'app_uri': destination,
+        'android_intent': None,
+        'is_reel': False,
+        'shortcode': None,
+        'item_name': item_name
+    }
+
 @app.route('/qr/<qr_id>')
 def qr_redirect(qr_id):
     redirects = load_redirects()
@@ -1141,16 +1372,27 @@ def qr_redirect(qr_id):
     save_redirects(redirects)
 
     destination = clean_url(qr_data.get('destination', ''))
-    app_uri, android_intent, is_reel, shortcode = parse_instagram_uris(destination)
-    name = qr_data.get('name', 'Instagram Link')
+    raw_name = qr_data.get('name', '')
+    meta = get_redirect_metadata(destination, raw_name)
 
     return render_template('qr_redirect.html', 
                            destination=destination, 
-                           app_uri=app_uri, 
-                           android_intent=android_intent,
-                           is_reel=is_reel,
-                           shortcode=shortcode,
-                           item_name=name)
+                           app_uri=meta['app_uri'], 
+                           android_intent=meta['android_intent'],
+                           is_reel=meta['is_reel'],
+                           shortcode=meta['shortcode'],
+                           item_name=meta['item_name'],
+                           platform=meta['platform'],
+                           platform_name=meta['platform_name'],
+                           theme_class=meta['theme_class'],
+                           icon_class=meta['icon_class'],
+                           badge_icon=meta['badge_icon'],
+                           badge_text=meta['badge_text'],
+                           btn_text=meta['btn_text'],
+                           btn_icon=meta['btn_icon'],
+                           secondary_text=meta['secondary_text'],
+                           subtitle=meta['subtitle'],
+                           domain=meta['domain'])
 
 
 if __name__ == '__main__':

@@ -3,14 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>{{ item_name or 'Opening Instagram...' }}</title>
+    <title>{{ item_name or platform_name or 'Redirecting...' }}</title>
     <link rel="icon" type="image/svg+xml" href="/static/bige_icon.svg">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         :root {
-            --ig-gradient: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
-            --ig-gradient-hover: linear-gradient(45deg, #e08322 0%, #d5572b 25%, #cb1632 50%, #bb1255 75%, #ab0777 100%);
+            /* Fallback / Base Dark Theme */
+            --bg-base: #111217;
+            --bg-gradient: radial-gradient(circle at 50% 15%, rgba(99, 102, 241, 0.16) 0%, rgba(79, 70, 229, 0.05) 50%, #0d0e14 100%);
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --card-border: rgba(255, 255, 255, 0.11);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.72);
+            --text-muted: rgba(255, 255, 255, 0.45);
+            
+            /* Generic Theme */
+            --brand-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%);
+            --brand-gradient-hover: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+            --brand-glow: 0 10px 28px rgba(99, 102, 241, 0.4);
+            --brand-color: #6366f1;
+            --btn-text: #ffffff;
+            --badge-bg: rgba(99, 102, 241, 0.16);
+            --badge-border: rgba(99, 102, 241, 0.32);
+            --badge-color: #c7d2fe;
+            --icon-wrapper-bg: var(--brand-gradient);
+            --icon-wrapper-border: transparent;
+            --icon-color: #ffffff;
         }
+
+        /* ---------------- Instagram Theme ---------------- */
+        body.theme-instagram {
+            --bg-gradient: radial-gradient(circle at 50% 15%, rgba(220, 39, 67, 0.22) 0%, rgba(188, 24, 136, 0.09) 45%, #101017 100%);
+            --brand-gradient: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+            --brand-gradient-hover: linear-gradient(45deg, #e08322 0%, #d5572b 25%, #cb1632 50%, #bb1255 75%, #ab0777 100%);
+            --brand-glow: 0 10px 30px rgba(220, 39, 67, 0.42);
+            --brand-color: #dc2743;
+            --btn-text: #ffffff;
+            --badge-bg: rgba(220, 39, 67, 0.16);
+            --badge-border: rgba(220, 39, 67, 0.35);
+            --badge-color: #ffcad4;
+            --icon-wrapper-bg: var(--brand-gradient);
+            --icon-wrapper-border: transparent;
+            --icon-color: #ffffff;
+        }
+
+        /* ---------------- TikTok Theme ---------------- */
+        body.theme-tiktok {
+            --bg-gradient: radial-gradient(circle at 25% 15%, rgba(0, 242, 254, 0.16) 0%, transparent 45%), radial-gradient(circle at 75% 25%, rgba(254, 44, 85, 0.18) 0%, transparent 50%), #07080c;
+            --brand-gradient: linear-gradient(135deg, #00f2fe -10%, #fe2c55 100%);
+            --brand-gradient-hover: linear-gradient(135deg, #00d6e0 -10%, #e82046 100%);
+            --brand-glow: 0 8px 26px rgba(254, 44, 85, 0.45), 0 2px 14px rgba(0, 242, 254, 0.32);
+            --brand-color: #fe2c55;
+            --btn-text: #ffffff;
+            --badge-bg: rgba(0, 242, 254, 0.12);
+            --badge-border: rgba(0, 242, 254, 0.32);
+            --badge-color: #25f4ee;
+            --icon-wrapper-bg: #0c0e14;
+            --icon-wrapper-border: 1px solid rgba(254, 44, 85, 0.4);
+            --icon-color: #ffffff;
+        }
+        body.theme-tiktok .icon-wrapper {
+            box-shadow: -4px -4px 18px rgba(0, 242, 254, 0.32), 4px 4px 18px rgba(254, 44, 85, 0.38);
+        }
+        body.theme-tiktok .icon-wrapper i {
+            background: linear-gradient(135deg, #00f2fe 0%, #fe2c55 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* ---------------- Facebook Theme ---------------- */
+        body.theme-facebook {
+            --bg-gradient: radial-gradient(circle at 50% 15%, rgba(24, 119, 242, 0.22) 0%, rgba(8, 102, 255, 0.08) 50%, #0a0f18 100%);
+            --brand-gradient: linear-gradient(135deg, #1877f2 0%, #0866ff 50%, #0052cc 100%);
+            --brand-gradient-hover: linear-gradient(135deg, #166fe5 0%, #0055d6 100%);
+            --brand-glow: 0 10px 30px rgba(24, 119, 242, 0.45);
+            --brand-color: #1877f2;
+            --btn-text: #ffffff;
+            --badge-bg: rgba(24, 119, 242, 0.16);
+            --badge-border: rgba(24, 119, 242, 0.35);
+            --badge-color: #90c2ff;
+            --icon-wrapper-bg: var(--brand-gradient);
+            --icon-wrapper-border: transparent;
+            --icon-color: #ffffff;
+        }
+
+        /* ---------------- YouTube Theme ---------------- */
+        body.theme-youtube {
+            --bg-gradient: radial-gradient(circle at 50% 15%, rgba(255, 0, 0, 0.2) 0%, rgba(180, 0, 0, 0.06) 50%, #100809 100%);
+            --brand-gradient: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+            --brand-gradient-hover: linear-gradient(135deg, #e60000 0%, #b30000 100%);
+            --brand-glow: 0 10px 30px rgba(255, 0, 0, 0.44);
+            --brand-color: #ff0000;
+            --btn-text: #ffffff;
+            --badge-bg: rgba(255, 0, 0, 0.16);
+            --badge-border: rgba(255, 0, 0, 0.35);
+            --badge-color: #ff9999;
+            --icon-wrapper-bg: var(--brand-gradient);
+            --icon-wrapper-border: transparent;
+            --icon-color: #ffffff;
+        }
+
+        /* ---------------- X / Twitter Theme ---------------- */
+        body.theme-x {
+            --bg-gradient: radial-gradient(circle at 50% 15%, rgba(255, 255, 255, 0.09) 0%, #07080a 100%);
+            --brand-gradient: linear-gradient(135deg, #ffffff 0%, #e6e6e6 100%);
+            --brand-gradient-hover: linear-gradient(135deg, #ebebeb 0%, #d6d6d6 100%);
+            --brand-glow: 0 8px 26px rgba(255, 255, 255, 0.22);
+            --brand-color: #ffffff;
+            --btn-text: #000000;
+            --badge-bg: rgba(255, 255, 255, 0.12);
+            --badge-border: rgba(255, 255, 255, 0.25);
+            --badge-color: #ffffff;
+            --icon-wrapper-bg: #050608;
+            --icon-wrapper-border: 1px solid rgba(255, 255, 255, 0.25);
+            --icon-color: #ffffff;
+        }
+
+        /* ---------------- Global Reset & Typography ---------------- */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -18,73 +127,125 @@
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #1f1f2e 0%, #121218 100%);
-            color: #ffffff;
+            background: var(--bg-gradient);
+            background-color: #0b0c10;
+            color: var(--text-primary);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 24px 16px;
+            transition: background 0.4s ease;
         }
         .container {
             width: 100%;
-            max-width: 420px;
-            background: rgba(255, 255, 255, 0.06);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 24px;
-            padding: 36px 28px;
+            max-width: 430px;
+            background: var(--card-bg);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--card-border);
+            border-radius: 26px;
+            padding: 38px 28px 32px;
             text-align: center;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
             animation: fadeIn 0.4s ease-out;
+            position: relative;
+            overflow: hidden;
         }
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(12px); }
+            from { opacity: 0; transform: translateY(14px); }
             to { opacity: 1; transform: translateY(0); }
         }
+
+        /* Ambient light reflection inside the card */
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 20%;
+            right: 20%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+        }
+
+        /* App / Platform Icon */
         .icon-wrapper {
-            width: 78px;
-            height: 78px;
+            width: 80px;
+            height: 80px;
             margin: 0 auto 20px;
-            border-radius: 22px;
-            background: var(--ig-gradient);
+            border-radius: 24px;
+            background: var(--icon-wrapper-bg);
+            border: var(--icon-wrapper-border);
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 10px 24px rgba(220, 39, 67, 0.35);
-            font-size: 40px;
-            color: white;
+            box-shadow: var(--brand-glow);
+            font-size: 38px;
+            color: var(--icon-color);
             position: relative;
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
         }
-        .reel-badge {
+        .icon-wrapper:hover {
+            transform: scale(1.04);
+        }
+
+        /* Platform Badge Pill */
+        .platform-badge {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            background: rgba(255, 255, 255, 0.12);
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            gap: 6px;
+            background: var(--badge-bg);
+            border: 1px solid var(--badge-border);
             border-radius: 20px;
-            padding: 4px 12px;
+            padding: 5px 14px;
             font-size: 12px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
             text-transform: uppercase;
-            margin-bottom: 12px;
-            color: #ffcad4;
+            margin-bottom: 14px;
+            color: var(--badge-color);
+            transition: all 0.2s ease;
         }
+
         h1 {
-            font-size: 22px;
+            font-size: 23px;
             font-weight: 700;
             margin-bottom: 8px;
-            color: #ffffff;
+            color: var(--text-primary);
             word-break: break-word;
+            line-height: 1.3;
         }
+
         p.subtitle {
             font-size: 14px;
-            color: rgba(255, 255, 255, 0.7);
-            margin-bottom: 28px;
-            line-height: 1.4;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+            line-height: 1.45;
         }
+
+        /* Clean Destination Pill */
+        .domain-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 6px 12px;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+            max-width: 90%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .domain-pill i {
+            color: var(--badge-color);
+            font-size: 13px;
+        }
+
+        /* Direct Action Button */
         .btn-open {
             display: flex;
             align-items: center;
@@ -92,99 +253,132 @@
             gap: 10px;
             width: 100%;
             padding: 16px 20px;
-            background: var(--ig-gradient);
-            color: #ffffff;
+            background: var(--brand-gradient);
+            color: var(--btn-text);
             text-decoration: none;
-            border-radius: 14px;
+            border-radius: 15px;
             font-size: 16px;
             font-weight: 700;
-            box-shadow: 0 6px 20px rgba(204, 35, 102, 0.4);
+            box-shadow: var(--brand-glow);
             transition: all 0.2s ease;
             border: none;
             cursor: pointer;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
         .btn-open:hover, .btn-open:active {
-            background: var(--ig-gradient-hover);
+            background: var(--brand-gradient-hover);
             transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(204, 35, 102, 0.5);
-            color: #ffffff;
+            color: var(--btn-text);
+        }
+        .btn-open i {
+            font-size: 1.25rem;
+        }
+
+        /* Secondary actions bar */
+        .secondary-actions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 4px;
         }
         .btn-secondary {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            color: rgba(255, 255, 255, 0.65);
+            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             text-decoration: none;
             font-size: 13px;
             font-weight: 500;
             padding: 8px 14px;
-            border-radius: 8px;
+            border-radius: 10px;
             transition: all 0.2s ease;
+            cursor: pointer;
+            user-select: none;
         }
         .btn-secondary:hover {
             color: #ffffff;
-            background: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.16);
         }
+
+        /* Status & Telemetry Hint */
         .status-text {
             font-size: 12px;
-            color: rgba(255, 255, 255, 0.45);
-            margin-top: 18px;
+            color: var(--text-muted);
+            margin-top: 20px;
+            min-height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
         .spinner {
             display: inline-block;
-            width: 14px;
-            height: 14px;
+            width: 13px;
+            height: 13px;
             border: 2px solid rgba(255, 255, 255, 0.2);
-            border-top-color: #ffffff;
+            border-top-color: var(--badge-color);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
-            vertical-align: middle;
-            margin-right: 6px;
         }
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
     </style>
 </head>
-<body>
+<body class="{{ theme_class or 'theme-generic' }}">
     <div class="container">
+        <!-- App / Brand Icon -->
         <div class="icon-wrapper">
-            {% if is_reel %}
-                <i class="bi bi-camera-reels-fill"></i>
-            {% else %}
-                <i class="bi bi-instagram"></i>
-            {% endif %}
+            <i class="{{ icon_class or 'bi bi-globe2' }}"></i>
         </div>
 
-        {% if is_reel %}
-            <div class="reel-badge">
-                <i class="bi bi-play-circle-fill"></i> Instagram Reel
-            </div>
-        {% endif %}
+        <!-- Platform Badge -->
+        <div class="platform-badge">
+            <i class="{{ badge_icon or 'bi bi-link-45deg' }}"></i>
+            <span>{{ badge_text or platform_name }}</span>
+        </div>
 
-        <h1>{{ item_name or 'Instagram' }}</h1>
-        <p class="subtitle">
-            {% if is_reel %}
-                Tap below to open directly in the Instagram Reels player.
-            {% else %}
-                Tap below to open in the Instagram app.
-            {% endif %}
-        </p>
+        <!-- Name / Title -->
+        <h1>{{ item_name or platform_name or 'Destination Link' }}</h1>
+
+        <!-- Subtitle / Action instructions -->
+        <p class="subtitle">{{ subtitle or 'Tap below to continue to the destination.' }}</p>
+
+        <!-- Domain Security Pill -->
+        {% if domain %}
+        <div class="domain-pill" title="{{ destination }}">
+            <i class="bi bi-shield-check"></i>
+            <span>{{ domain }}</span>
+        </div>
+        {% endif %}
 
         <!-- Direct Action Button with User-Gesture -->
         <a id="btn-open-app" href="{{ destination }}" class="btn-open" rel="noopener noreferrer">
-            <i class="bi bi-instagram fs-5"></i>
-            <span>Open in Instagram App</span>
+            <i class="{{ btn_icon or 'bi bi-box-arrow-up-right' }}"></i>
+            <span id="btn-open-text">{{ btn_text or 'Open Destination' }}</span>
         </a>
 
-        <!-- Fallback Web Link -->
-        <div>
-            <a href="{{ destination }}" class="btn-secondary" id="btn-browser-fallback">
-                <i class="bi bi-globe"></i> Continue in Web Browser
+        <!-- Secondary Actions (Browser Fallback / Copy Link) -->
+        <div class="secondary-actions">
+            {% if platform != 'generic' %}
+            <a href="{{ destination }}" class="btn-secondary" id="btn-browser-fallback" rel="noopener noreferrer">
+                <i class="bi bi-globe"></i> Continue in Browser
             </a>
+            {% endif %}
+            <button type="button" class="btn-secondary" id="btn-copy-link" onclick="copyDestinationLink()">
+                <i class="bi bi-clipboard" id="copy-icon"></i>
+                <span id="copy-text">Copy Link</span>
+            </button>
         </div>
 
+        <!-- Telemetry & Redirect Status Hint -->
         <div class="status-text" id="status-hint">
             <span class="spinner" id="auto-spinner" style="display: none;"></span>
             <span id="status-message">Ready to open</span>
@@ -196,6 +390,9 @@
         var appUri = {{ app_uri | tojson }};
         var androidIntent = {{ android_intent | tojson }};
         var isReel = {{ is_reel | tojson }};
+        var platform = {{ (platform or 'generic') | tojson }};
+        var platformName = {{ (platform_name or 'Destination') | tojson }};
+        var domain = {{ (domain or '') | tojson }};
 
         var isAndroid = /Android/i.test(navigator.userAgent);
         var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -204,51 +401,213 @@
         var statusHint = document.getElementById('status-message');
         var spinner = document.getElementById('auto-spinner');
 
-        // Configure target URL for the button based on OS
-        if (isAndroid && androidIntent) {
-            // Android uses Chrome intent to directly launch Instagram's ReelsActivity
-            openBtn.setAttribute('href', androidIntent);
-            
-            // Try automatic launch on Android if supported
-            if (spinner) spinner.style.display = 'inline-block';
-            if (statusHint) statusHint.textContent = 'Launching Instagram...';
-            
-            setTimeout(function() {
-                window.location.href = androidIntent;
-            }, 100);
+        // -------------------------------------------------------------
+        // Platform-Specific Deep Linking & Navigation Logic
+        // -------------------------------------------------------------
 
-            setTimeout(function() {
-                if (spinner) spinner.style.display = 'none';
-                if (statusHint) statusHint.textContent = 'Tap above if Instagram did not open automatically';
-            }, 2500);
-
-        } else if (isIOS) {
-            if (isReel) {
-                // For Reels on iOS, a direct user tap on the Universal Link (destination)
-                // is required by iOS to open into the native Reels player rather than the legacy video screen.
-                openBtn.setAttribute('href', destination);
-                if (statusHint) statusHint.textContent = 'Tap "Open in Instagram App" to view Reel';
-            } else if (appUri && appUri.indexOf('instagram://') === 0) {
-                // Non-reel targets with valid custom schemes (e.g. user profiles)
-                openBtn.setAttribute('href', appUri);
+        if (platform === 'instagram') {
+            if (isAndroid && androidIntent) {
+                openBtn.setAttribute('href', androidIntent);
                 if (spinner) spinner.style.display = 'inline-block';
                 if (statusHint) statusHint.textContent = 'Launching Instagram...';
 
                 setTimeout(function() {
-                    window.location.href = appUri;
+                    window.location.href = androidIntent;
                 }, 100);
 
                 setTimeout(function() {
                     if (spinner) spinner.style.display = 'none';
                     if (statusHint) statusHint.textContent = 'Tap above if Instagram did not open automatically';
                 }, 2500);
+
+            } else if (isIOS) {
+                if (isReel) {
+                    // For Reels on iOS, a direct user tap on Universal Link is required
+                    // to launch the native Reels player rather than legacy video
+                    openBtn.setAttribute('href', destination);
+                    if (statusHint) statusHint.textContent = 'Tap "Open in Instagram App" to view Reel';
+                } else if (appUri && appUri.indexOf('instagram://') === 0) {
+                    openBtn.setAttribute('href', appUri);
+                    if (spinner) spinner.style.display = 'inline-block';
+                    if (statusHint) statusHint.textContent = 'Launching Instagram...';
+
+                    setTimeout(function() {
+                        window.location.href = appUri;
+                    }, 100);
+
+                    setTimeout(function() {
+                        if (spinner) spinner.style.display = 'none';
+                        if (statusHint) statusHint.textContent = 'Tap above if Instagram did not open automatically';
+                    }, 2500);
+                } else {
+                    openBtn.setAttribute('href', destination);
+                }
             } else {
                 openBtn.setAttribute('href', destination);
+                if (statusHint) statusHint.textContent = 'Click above to view on Instagram';
             }
+
+        } else if (platform === 'tiktok') {
+            if (isAndroid && androidIntent) {
+                openBtn.setAttribute('href', androidIntent);
+                if (spinner) spinner.style.display = 'inline-block';
+                if (statusHint) statusHint.textContent = 'Launching TikTok...';
+
+                setTimeout(function() {
+                    window.location.href = androidIntent;
+                }, 100);
+
+                setTimeout(function() {
+                    if (spinner) spinner.style.display = 'none';
+                    if (statusHint) statusHint.textContent = 'Tap above if TikTok did not open automatically';
+                }, 2500);
+
+            } else if (isIOS) {
+                // TikTok Universal Links open directly in the TikTok app when tapped on iOS
+                openBtn.setAttribute('href', destination);
+                if (statusHint) statusHint.textContent = 'Tap "Open in TikTok App" to watch';
+            } else {
+                openBtn.setAttribute('href', destination);
+                if (statusHint) statusHint.textContent = 'Click above to view on TikTok';
+            }
+
+        } else if (platform === 'facebook') {
+            if (isAndroid && androidIntent) {
+                openBtn.setAttribute('href', androidIntent);
+                if (spinner) spinner.style.display = 'inline-block';
+                if (statusHint) statusHint.textContent = 'Launching Facebook...';
+
+                setTimeout(function() {
+                    window.location.href = androidIntent;
+                }, 100);
+
+                setTimeout(function() {
+                    if (spinner) spinner.style.display = 'none';
+                    if (statusHint) statusHint.textContent = 'Tap above if Facebook did not open automatically';
+                }, 2500);
+
+            } else if (isIOS) {
+                openBtn.setAttribute('href', destination);
+                if (statusHint) statusHint.textContent = 'Tap "Open in Facebook App" to view';
+            } else {
+                openBtn.setAttribute('href', destination);
+                if (statusHint) statusHint.textContent = 'Click above to view on Facebook';
+            }
+
+        } else if (platform === 'youtube') {
+            if (isAndroid && androidIntent) {
+                openBtn.setAttribute('href', androidIntent);
+                if (spinner) spinner.style.display = 'inline-block';
+                if (statusHint) statusHint.textContent = 'Launching YouTube...';
+
+                setTimeout(function() {
+                    window.location.href = androidIntent;
+                }, 100);
+
+                setTimeout(function() {
+                    if (spinner) spinner.style.display = 'none';
+                    if (statusHint) statusHint.textContent = 'Tap above if YouTube did not open automatically';
+                }, 2500);
+
+            } else if (isIOS) {
+                openBtn.setAttribute('href', destination);
+                if (statusHint) statusHint.textContent = 'Tap "Open in YouTube App" to watch';
+            } else {
+                openBtn.setAttribute('href', destination);
+                if (statusHint) statusHint.textContent = 'Click above to watch on YouTube';
+            }
+
+        } else if (platform === 'x') {
+            if (isAndroid && androidIntent) {
+                openBtn.setAttribute('href', androidIntent);
+                if (spinner) spinner.style.display = 'inline-block';
+                if (statusHint) statusHint.textContent = 'Opening X...';
+
+                setTimeout(function() {
+                    window.location.href = androidIntent;
+                }, 100);
+
+                setTimeout(function() {
+                    if (spinner) spinner.style.display = 'none';
+                    if (statusHint) statusHint.textContent = 'Tap above if X did not open automatically';
+                }, 2500);
+            } else {
+                openBtn.setAttribute('href', destination);
+                if (statusHint) statusHint.textContent = 'Click above to open on X';
+            }
+
         } else {
-            // Desktop or generic browser
+            // Generic Website
             openBtn.setAttribute('href', destination);
-            if (statusHint) statusHint.textContent = 'Click above to view on Instagram';
+            
+            // Helpful auto-forward countdown for web links (2 seconds)
+            var countdown = 2;
+            var targetLabel = domain || 'website';
+            if (spinner) spinner.style.display = 'inline-block';
+            if (statusHint) statusHint.textContent = 'Redirecting to ' + targetLabel + ' in ' + countdown + 's...';
+
+            var autoTimer = setInterval(function() {
+                countdown--;
+                if (countdown > 0) {
+                    if (statusHint) statusHint.textContent = 'Redirecting to ' + targetLabel + ' in ' + countdown + 's...';
+                } else {
+                    clearInterval(autoTimer);
+                    if (statusHint) statusHint.textContent = 'Opening ' + targetLabel + '...';
+                    window.location.href = destination;
+                }
+            }, 1000);
+
+            // Pause auto-redirect if user interacts with copy button
+            var copyBtn = document.getElementById('btn-copy-link');
+            if (copyBtn) {
+                copyBtn.addEventListener('click', function() {
+                    clearInterval(autoTimer);
+                    if (spinner) spinner.style.display = 'none';
+                    if (statusHint) statusHint.textContent = 'Auto-redirect paused';
+                });
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Copy Destination URL to Clipboard
+        // -------------------------------------------------------------
+        function copyDestinationLink() {
+            var dest = destination;
+            if (!navigator.clipboard) {
+                var textArea = document.createElement("textarea");
+                textArea.value = dest;
+                textArea.style.position = "fixed";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showCopiedFeedback();
+                } catch (err) {}
+                document.body.removeChild(textArea);
+                return;
+            }
+            navigator.clipboard.writeText(dest).then(function() {
+                showCopiedFeedback();
+            }).catch(function() {
+                showCopiedFeedback();
+            });
+        }
+
+        function showCopiedFeedback() {
+            var copyIcon = document.getElementById('copy-icon');
+            var copyText = document.getElementById('copy-text');
+            if (!copyText) return;
+            var origIcon = copyIcon ? copyIcon.className : '';
+            var origText = copyText.textContent;
+            
+            if (copyIcon) copyIcon.className = 'bi bi-check2 text-success';
+            copyText.textContent = 'Copied!';
+            
+            setTimeout(function() {
+                if (copyIcon) copyIcon.className = origIcon;
+                copyText.textContent = origText;
+            }, 2000);
         }
     </script>
 </body>
