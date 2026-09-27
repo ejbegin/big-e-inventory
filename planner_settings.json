@@ -1,0 +1,26 @@
+{
+    "car_map": {
+        "grid_cols": 4,
+        "grid_rows": 7,
+        "locations": {
+            "PB": {"col": 0, "row": 0, "name": "Peanut Butter"},
+            "AP": {"col": 0, "row": 1, "name": "Apple"},
+            "BN": {"col": 0, "row": 2, "name": "Banana Bread"},
+            "BB": {"col": 0, "row": 3, "name": "Blueberry"},
+            "CB": {"col": 0, "row": 4, "name": "Cornbread"},
+            "EB": {"col": 0, "row": 5, "name": "Elderberry"},
+            "HP": {"col": 0, "row": 6, "name": "Hot Pepper"},
+            
+            "Straw": {"col": 1, "row": 0, "name": "Strawberry"},
+            "Pump": {"col": 1, "row": 1, "name": "Pumpkin Pie"},
+            "LAV": {"col": 1, "row": 2, "name": "Lavender"},
+            "StRB": {"col": 1, "row": 3, "name": "Str-Rhubarb"},
+            "Dan": {"col": 1, "row": 4, "name": "Dandelion"},
+            "CC": {"col": 1, "row": 5, "name": "Carrot Cake"},
+            "P": {"col": 1, "row": 6, "name": "Pear"},
+            
+            "Fig": {"col": 2, "row": 0, "name": "Fig"},
+            "SmP": {"col": 2, "row": 1, "name": "Smoky Peach"}
+        }
+    }
+}

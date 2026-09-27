@@ -186,6 +186,7 @@
                     <div class="d-flex align-items-center justify-content-between fw-bold mb-2 pb-2 border-bottom">
                         <div style="flex: 2">Item</div>
                         <div style="flex: 1; padding: 0 10px; max-width: 130px;">Case Size</div>
+                        <div style="flex: 1; padding: 0 10px; max-width: 130px;">Par Level (Cases)</div>
                         <div style="flex: 1; text-align: center; max-width: 140px;">
                             <div>Visible on Tally</div>
                             <div class="mt-1 fw-normal">
@@ -451,13 +452,15 @@
                 // Default settings
                 let caseSize = 12;
                 let visible = item.name.toLowerCase().includes('pb&j') ? true : false;
+                let parLevel = 0;
                 
                 if (settings[id]) {
                     if (settings[id].case_size !== undefined) caseSize = settings[id].case_size;
                     if (settings[id].visible !== undefined) visible = settings[id].visible;
+                    if (settings[id].par_level !== undefined) parLevel = settings[id].par_level;
                 } else {
                     // Cache default in memory settings dict
-                    settings[id] = { case_size: caseSize, visible: visible };
+                    settings[id] = { case_size: caseSize, visible: visible, par_level: parLevel };
                 }
 
                 const metaText = [item.categoryName !== 'Uncategorized' ? item.categoryName : '', item.subCategoryName].filter(Boolean).join(' › ');
@@ -472,6 +475,9 @@
                     <div class="item-case">
                         <input type="number" class="form-control" id="case-${id}" value="${caseSize}" min="1" onchange="onItemChange('${id}')">
                     </div>
+                    <div style="flex: 1; padding: 0 10px; max-width: 130px;">
+                        <input type="number" class="form-control" id="par-${id}" value="${parLevel}" min="0" onchange="onItemChange('${id}')">
+                    </div>
                     <div class="item-visible form-check form-switch d-flex justify-content-center">
                         <input class="form-check-input" type="checkbox" id="vis-${id}" ${visible ? 'checked' : ''} style="width: 2.5em; height: 1.25em;" onchange="onItemChange('${id}')">
                     </div>
@@ -483,10 +489,12 @@
         function onItemChange(id) {
             const caseEl = document.getElementById(`case-${id}`);
             const visEl = document.getElementById(`vis-${id}`);
-            if (caseEl && visEl) {
+            const parEl = document.getElementById(`par-${id}`);
+            if (caseEl && visEl && parEl) {
                 settings[id] = {
                     case_size: parseInt(caseEl.value) || 12,
-                    visible: visEl.checked
+                    visible: visEl.checked,
+                    par_level: parseInt(parEl.value) || 0
                 };
             }
         }
@@ -500,9 +508,13 @@
                 }
                 const caseEl = document.getElementById(`case-${id}`);
                 const caseSize = caseEl ? (parseInt(caseEl.value) || 12) : (settings[id]?.case_size || 12);
+                const parEl = document.getElementById(`par-${id}`);
+                const parLevel = parEl ? (parseInt(parEl.value) || 0) : (settings[id]?.par_level || 0);
+                
                 settings[id] = {
                     case_size: caseSize,
-                    visible: shouldSelect
+                    visible: shouldSelect,
+                    par_level: parLevel
                 };
             });
         }

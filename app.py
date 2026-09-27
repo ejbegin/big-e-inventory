@@ -234,7 +234,8 @@ def serialize_item_settings(item_obj, all_settings):
         if s is not None:
             return json.dumps({
                 'case_size': int(s.get('case_size', 12)),
-                'visible': bool(s.get('visible', False))
+                'visible': bool(s.get('visible', False)),
+                'par_level': int(s.get('par_level', 0))
             })
         return None
 
@@ -244,7 +245,7 @@ def serialize_item_settings(item_obj, all_settings):
         v_id = v['id']
         s = all_settings.get(v_id)
         if s is not None:
-            payload[v_id] = [int(s.get('case_size', 12)), 1 if s.get('visible') else 0]
+            payload[v_id] = [int(s.get('case_size', 12)), 1 if s.get('visible') else 0, int(s.get('par_level', 0))]
 
     encoded = json.dumps(payload)
     if len(encoded) <= 240:
@@ -256,7 +257,7 @@ def serialize_item_settings(item_obj, all_settings):
         v_id = v['id']
         s = all_settings.get(v_id)
         if s is not None:
-            idx_payload["vars"][str(idx)] = [int(s.get('case_size', 12)), 1 if s.get('visible') else 0]
+            idx_payload["vars"][str(idx)] = [int(s.get('case_size', 12)), 1 if s.get('visible') else 0, int(s.get('par_level', 0))]
     return json.dumps(idx_payload)
 
 def deserialize_item_settings(item_obj, string_value):
@@ -278,7 +279,8 @@ def deserialize_item_settings(item_obj, string_value):
         v_id = variations[0]['id']
         res[v_id] = {
             'case_size': int(data.get('case_size', 12)),
-            'visible': bool(data.get('visible', False))
+            'visible': bool(data.get('visible', False)),
+            'par_level': int(data.get('par_level', 0))
         }
         return res
 
@@ -292,7 +294,8 @@ def deserialize_item_settings(item_obj, string_value):
                     if isinstance(val, list) and len(val) >= 2:
                         res[v_id] = {
                             'case_size': int(val[0]),
-                            'visible': bool(val[1])
+                            'visible': bool(val[1]),
+                            'par_level': int(val[2]) if len(val) >= 3 else 0
                         }
             except Exception:
                 pass
@@ -304,12 +307,14 @@ def deserialize_item_settings(item_obj, string_value):
             if isinstance(val, list) and len(val) >= 2:
                 res[v_id] = {
                     'case_size': int(val[0]),
-                    'visible': bool(val[1])
+                    'visible': bool(val[1]),
+                    'par_level': int(val[2]) if len(val) >= 3 else 0
                 }
             elif isinstance(val, dict):
                 res[v_id] = {
                     'case_size': int(val.get('case_size', 12)),
-                    'visible': bool(val.get('visible', False))
+                    'visible': bool(val.get('visible', False)),
+                    'par_level': int(val.get('par_level', 0))
                 }
     return res
 
@@ -587,6 +592,27 @@ def get_inventory_counts():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+PLANNER_SETTINGS_FILE = os.path.join(DATA_DIR, 'planner_settings.json')
+
+@app.route('/api/planner_settings', methods=['GET', 'POST'])
+def api_planner_settings():
+    if request.method == 'POST':
+        data = request.json or {}
+        try:
+            with open(PLANNER_SETTINGS_FILE, 'w') as f:
+                json.dump(data, f, indent=4)
+            return jsonify({"status": "success"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)}), 500
+    
+    if os.path.exists(PLANNER_SETTINGS_FILE):
+        try:
+            with open(PLANNER_SETTINGS_FILE, 'r') as f:
+                return jsonify(json.load(f))
+        except Exception:
+            pass
+    return jsonify({})
 
 HISTORY_FILE = os.path.join(DATA_DIR, 'transfer_history.json')
 
