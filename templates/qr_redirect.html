@@ -68,6 +68,7 @@
         body.theme-tiktok .icon-wrapper i {
             background: linear-gradient(135deg, #00f2fe 0%, #fe2c55 100%);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
@@ -385,14 +386,27 @@
         </div>
     </div>
 
+    <script id="server-data" type="application/json">
+        {
+            "destination": {{ destination | tojson }},
+            "appUri": {{ app_uri | tojson }},
+            "androidIntent": {{ android_intent | tojson }},
+            "isReel": {{ is_reel | tojson }},
+            "platform": {{ (platform or 'generic') | tojson }},
+            "platformName": {{ (platform_name or 'Destination') | tojson }},
+            "domain": {{ (domain or '') | tojson }}
+        }
+    </script>
+
     <script>
-        var destination = {{ destination | tojson }};
-        var appUri = {{ app_uri | tojson }};
-        var androidIntent = {{ android_intent | tojson }};
-        var isReel = {{ is_reel | tojson }};
-        var platform = {{ (platform or 'generic') | tojson }};
-        var platformName = {{ (platform_name or 'Destination') | tojson }};
-        var domain = {{ (domain or '') | tojson }};
+        var serverData = JSON.parse(document.getElementById('server-data').textContent || '{}');
+        var destination = serverData.destination;
+        var appUri = serverData.appUri;
+        var androidIntent = serverData.androidIntent;
+        var isReel = serverData.isReel;
+        var platform = serverData.platform || 'generic';
+        var platformName = serverData.platformName || 'Destination';
+        var domain = serverData.domain || '';
 
         var isAndroid = /Android/i.test(navigator.userAgent);
         var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
