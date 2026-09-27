@@ -7,6 +7,9 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="icon" type="image/svg+xml" href="/static/bige_icon.svg">
+    <!-- Cropper.js for Profile Picture Resizing & Cropping -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
     <style>
         body { background-color: #f4f6f9; font-family: system-ui, -apple-system, sans-serif; }
         .nav-pills .nav-link { border-radius: 8px; color: rgba(255,255,255,0.85); padding: 6px 14px; margin-right: 4px; transition: all 0.2s ease; }
@@ -152,12 +155,36 @@
                             </div>
 
                             <hr class="my-4 text-muted opacity-25">
-                            <h6 class="fw-bold mb-3"><i class="bi bi-palette me-2 text-primary"></i>Design</h6>
+                            <h6 class="fw-bold mb-3"><i class="bi bi-palette me-2 text-primary"></i>Design & Profile Photo</h6>
 
                             <div class="mb-3">
-                                <label class="form-label fw-bold small text-secondary">Profile Picture URL</label>
-                                <input type="text" class="form-control" id="card-picture" placeholder="/static/bige_logo.png">
-                                <div class="form-text">Paste an image URL or use an existing logo path.</div>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label class="form-label fw-bold small text-secondary mb-0">Profile Picture</label>
+                                    <button type="button" class="btn btn-link btn-sm text-decoration-none p-0 text-primary fw-semibold" onclick="triggerProfileUpload()" style="font-size: 0.8rem;">
+                                        <i class="bi bi-upload me-1"></i>Upload Photo
+                                    </button>
+                                </div>
+
+                                <div class="d-flex align-items-center gap-3 mb-2 p-2 rounded bg-light border">
+                                    <div style="width: 56px; height: 56px; border-radius: 50%; overflow: hidden; border: 2px solid #dee2e6; flex-shrink: 0; background: #fff;">
+                                        <img id="profile-picture-preview" src="/static/bige_logo.png" style="width:100%; height:100%; object-fit:cover;" onerror="this.src='/static/bige_logo.png'">
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="input-group input-group-sm">
+                                            <select class="form-select form-select-sm" id="card-picture-select" onchange="handlePicturePresetChange()">
+                                                <option value="/static/bige_logo.png">Big E Logo (Default)</option>
+                                                <option value="/static/chicken_logo.png">Chicken Logo</option>
+                                                <option value="custom">Custom Image URL...</option>
+                                            </select>
+                                            <button type="button" class="btn btn-primary" onclick="triggerProfileUpload()" title="Upload & Crop photo">
+                                                <i class="bi bi-upload me-1"></i> Upload
+                                            </button>
+                                        </div>
+                                        <input type="text" class="form-control form-control-sm mt-1" id="card-picture" placeholder="/static/bige_logo.png" oninput="handlePictureInput(this.value)">
+                                    </div>
+                                </div>
+                                <input type="file" id="profile-pic-file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none;" onchange="handleProfileFileSelected(event)">
+                                <div class="form-text small text-muted">Supports PNG, JPG, WebP, SVG with interactive cropper, rotation, & size limits (Max 5MB).</div>
                             </div>
 
                             <div class="mb-4">
@@ -177,8 +204,55 @@
         </div>
     </div>
 
+    <!-- Profile Crop & Resize Modal -->
+    <div class="modal fade" id="cropModal" tabindex="-1" aria-labelledby="cropModalLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header">
+                    <h6 class="modal-title fw-bold" id="cropModalLabel"><i class="bi bi-crop me-2 text-primary"></i><span id="crop-modal-heading">Crop & Resize Profile Picture</span></h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <div style="max-height: 380px; width: 100%; background: #222; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 8px;">
+                        <img id="crop-image" src="" alt="To Crop" style="max-width: 100%; max-height: 360px; display: block;">
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-3" id="crop-tools-row">
+                        <small class="text-muted"><i class="bi bi-info-circle me-1"></i>1:1 aspect ratio optimized for profile avatar</small>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary" onclick="rotateCropper(-90)" title="Rotate Left"><i class="bi bi-arrow-counterclockwise"></i></button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="rotateCropper(90)" title="Rotate Right"><i class="bi bi-arrow-clockwise"></i></button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="resetCropper()" title="Reset"><i class="bi bi-arrow-repeat"></i></button>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label for="crop-pic-name" class="form-label small fw-bold text-dark mb-1">
+                            <i class="bi bi-tag-fill text-primary me-1"></i>Picture Name / Preset Label
+                        </label>
+                        <input type="text" class="form-control" id="crop-pic-name" placeholder="e.g. Libby Portrait" required maxlength="60">
+                        <div class="form-text small text-muted">This name helps identify your photo across business cards and QR codes.</div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light p-2">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-primary fw-bold" id="btn-save-crop" onclick="saveCroppedProfilePic()">
+                        <i class="bi bi-check-lg me-1"></i> Save & Use Photo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
     <script>
         let currentCards = {};
+        let availableLogos = [];
+        let cropper = null;
+        let cropModalInstance = null;
+        let pendingUploadFileName = 'profile.png';
+        let pendingIsSvg = false;
+        let pendingSvgFile = null;
 
         function escapeHtml(text) {
             if (!text) return '';
@@ -188,6 +262,257 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        async function loadLogos() {
+            try {
+                const res = await fetch('/api/qr/logos?t=' + Date.now());
+                if (res.ok) {
+                    availableLogos = await res.json();
+                    populateLogoDropdown();
+                }
+            } catch (err) {
+                console.error("Failed to load logos", err);
+            }
+        }
+
+        function populateLogoDropdown(selectedVal = null) {
+            const select = document.getElementById('card-picture-select');
+            const currentVal = selectedVal !== null ? selectedVal : (document.getElementById('card-picture').value.trim() || '/static/bige_logo.png');
+            
+            select.innerHTML = '';
+            
+            let matched = false;
+            availableLogos.forEach(logo => {
+                const opt = document.createElement('option');
+                opt.value = logo.url;
+                opt.textContent = logo.name || logo.url;
+                if (logo.url === currentVal) {
+                    opt.selected = true;
+                    matched = true;
+                }
+                select.appendChild(opt);
+            });
+
+            const customOpt = document.createElement('option');
+            customOpt.value = 'custom';
+            customOpt.textContent = 'Custom Image URL...';
+            if (!matched && currentVal) {
+                customOpt.selected = true;
+            }
+            select.appendChild(customOpt);
+
+            updatePicturePreview(currentVal);
+        }
+
+        function handlePicturePresetChange() {
+            const select = document.getElementById('card-picture-select');
+            const input = document.getElementById('card-picture');
+            if (select.value !== 'custom') {
+                input.value = select.value;
+                updatePicturePreview(select.value);
+            } else {
+                input.focus();
+            }
+        }
+
+        function handlePictureInput(val) {
+            updatePicturePreview(val || '/static/bige_logo.png');
+            const select = document.getElementById('card-picture-select');
+            let matched = false;
+            for (let i = 0; i < select.options.length; i++) {
+                if (select.options[i].value === val.trim()) {
+                    select.selectedIndex = i;
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                select.value = 'custom';
+            }
+        }
+
+        function updatePicturePreview(src) {
+            const img = document.getElementById('profile-picture-preview');
+            if (img) {
+                img.src = src || '/static/bige_logo.png';
+            }
+        }
+
+        function triggerProfileUpload() {
+            const fileInput = document.getElementById('profile-pic-file');
+            fileInput.value = '';
+            fileInput.click();
+        }
+
+        function handleProfileFileSelected(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Restrict file size (max 5MB)
+            const MAX_SIZE = 5 * 1024 * 1024;
+            if (file.size > MAX_SIZE) {
+                showAlert('File exceeds maximum limit of 5MB. Please choose a smaller image.', 'danger');
+                return;
+            }
+
+            // Disallow non-image formats
+            const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+            if (!allowedTypes.includes(file.type)) {
+                showAlert('Unsupported file type. Please upload PNG, JPG, WebP, or SVG.', 'danger');
+                return;
+            }
+
+            pendingUploadFileName = file.name;
+            const isSvg = file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg');
+            pendingIsSvg = isSvg;
+            pendingSvgFile = isSvg ? file : null;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                openCropperModal(e.target.result, isSvg);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function openCropperModal(dataUrl, isSvg = false) {
+            const image = document.getElementById('crop-image');
+            image.src = dataUrl;
+
+            // Pre-fill suggested friendly name
+            const rawBase = pendingUploadFileName.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' ');
+            const suggestedName = rawBase.replace(/\b\w/g, l => l.toUpperCase());
+            const nameInput = document.getElementById('crop-pic-name');
+            if (nameInput) nameInput.value = suggestedName;
+
+            const heading = document.getElementById('crop-modal-heading');
+            const toolsRow = document.getElementById('crop-tools-row');
+
+            if (isSvg) {
+                if (heading) heading.innerHTML = 'Review & Name Vector Graphic';
+                if (toolsRow) toolsRow.style.display = 'none';
+            } else {
+                if (heading) heading.innerHTML = 'Crop & Resize Profile Picture';
+                if (toolsRow) toolsRow.style.display = 'flex';
+            }
+
+            if (!cropModalInstance) {
+                cropModalInstance = new bootstrap.Modal(document.getElementById('cropModal'));
+            }
+            cropModalInstance.show();
+        }
+
+        function rotateCropper(degree) {
+            if (cropper) cropper.rotate(degree);
+        }
+
+        function resetCropper() {
+            if (cropper) cropper.reset();
+        }
+
+        async function saveCroppedProfilePic() {
+            const btn = document.getElementById('btn-save-crop');
+            const nameInput = document.getElementById('crop-pic-name');
+            const picName = (nameInput ? nameInput.value.trim() : '') || 'Profile Photo';
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+            if (pendingIsSvg && pendingSvgFile) {
+                const formData = new FormData();
+                formData.append('file', pendingSvgFile);
+                formData.append('name', picName);
+
+                try {
+                    const res = await fetch('/api/qr/logos', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await res.json().catch(() => ({}));
+                    if (res.ok && result.status === 'success') {
+                        cropModalInstance.hide();
+                        showAlert(`Photo "${picName}" saved and applied!`, 'success');
+                        await loadLogos();
+                        document.getElementById('card-picture').value = result.logo.url;
+                        populateLogoDropdown(result.logo.url);
+                    } else {
+                        showAlert(result.error || 'Failed to save SVG graphic', 'danger');
+                    }
+                } catch (err) {
+                    showAlert('Network error saving SVG graphic', 'danger');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save & Use Photo';
+                }
+                return;
+            }
+
+            if (!cropper) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save & Use Photo';
+                showAlert('Cropper is not ready yet', 'warning');
+                return;
+            }
+
+            try {
+                // Get cropped canvas resized to 600x600 for sharp avatars
+                const canvas = cropper.getCroppedCanvas({
+                    width: 600,
+                    height: 600,
+                    imageSmoothingEnabled: true,
+                    imageSmoothingQuality: 'high'
+                });
+
+                if (!canvas) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save & Use Photo';
+                    showAlert('Unable to generate cropped image from canvas', 'danger');
+                    return;
+                }
+
+                canvas.toBlob(async function(blob) {
+                    if (!blob) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save & Use Photo';
+                        showAlert('Error creating image blob', 'danger');
+                        return;
+                    }
+
+                    const formData = new FormData();
+                    const cleanName = pendingUploadFileName.replace(/\.[^/.]+$/, "") + ".png";
+                    formData.append('file', blob, cleanName);
+                    formData.append('name', picName);
+
+                    try {
+                        const res = await fetch('/api/qr/logos', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const result = await res.json().catch(() => ({}));
+
+                        if (res.ok && result.status === 'success') {
+                            cropModalInstance.hide();
+                            showAlert(`Photo "${picName}" saved and applied!`, 'success');
+                            await loadLogos();
+                            document.getElementById('card-picture').value = result.logo.url;
+                            populateLogoDropdown(result.logo.url);
+                        } else {
+                            showAlert(result.error || 'Failed to upload photo', 'danger');
+                        }
+                    } catch (err) {
+                        showAlert('Network error saving photo', 'danger');
+                    } finally {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save & Use Photo';
+                    }
+                }, 'image/png');
+            } catch (err) {
+                console.error(err);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save & Use Photo';
+                showAlert('Error processing image crop', 'danger');
+            }
         }
 
         async function loadCards() {
@@ -220,7 +545,7 @@
                 const pic = c.profile_picture || '/static/bige_logo.png';
                 btn.innerHTML = `
                     <div style="width: 48px; height: 48px; border-radius: 50%; overflow: hidden; border: 2px solid ${escapeHtml(c.theme_color || '#ccc')}">
-                        <img src="${escapeHtml(pic)}" style="width:100%; height:100%; object-fit:cover;">
+                        <img src="${escapeHtml(pic)}" style="width:100%; height:100%; object-fit:cover;" onerror="this.src='/static/bige_logo.png'">
                     </div>
                     <div class="flex-grow-1 min-w-0">
                         <div class="fw-bold text-truncate">${escapeHtml(c.name || 'Unnamed')}</div>
@@ -236,6 +561,8 @@
             document.getElementById('card-form').reset();
             document.getElementById('card-id').readOnly = false;
             document.getElementById('editor-title').textContent = 'Create New Card';
+            document.getElementById('card-picture').value = '/static/bige_logo.png';
+            populateLogoDropdown('/static/bige_logo.png');
             document.getElementById('btn-delete').style.display = 'none';
             document.getElementById('btn-preview').style.display = 'none';
         }
@@ -257,7 +584,11 @@
             document.getElementById('card-instagram').value = c.instagram || '';
             document.getElementById('card-facebook').value = c.facebook || '';
             document.getElementById('card-linkedin').value = c.linkedin || '';
-            document.getElementById('card-picture').value = c.profile_picture || '';
+            
+            const pic = c.profile_picture || '/static/bige_logo.png';
+            document.getElementById('card-picture').value = pic;
+            populateLogoDropdown(pic);
+            
             document.getElementById('card-color').value = c.theme_color || '#0d6efd';
 
             document.getElementById('btn-delete').style.display = 'inline-block';
@@ -337,7 +668,39 @@
             setTimeout(() => { c.innerHTML = ''; }, 3000);
         }
 
-        document.addEventListener('DOMContentLoaded', loadCards);
+        document.addEventListener('DOMContentLoaded', () => {
+            loadLogos();
+            loadCards();
+
+            const cropModalElem = document.getElementById('cropModal');
+            if (cropModalElem) {
+                cropModalElem.addEventListener('shown.bs.modal', () => {
+                    if (cropper) {
+                        cropper.destroy();
+                        cropper = null;
+                    }
+                    if (!pendingIsSvg) {
+                        const image = document.getElementById('crop-image');
+                        cropper = new Cropper(image, {
+                            aspectRatio: 1, // 1:1 circular/square avatar
+                            viewMode: 1,
+                            autoCropArea: 0.9,
+                            responsive: true,
+                            background: false
+                        });
+                    }
+                });
+
+                cropModalElem.addEventListener('hidden.bs.modal', () => {
+                    if (cropper) {
+                        cropper.destroy();
+                        cropper = null;
+                    }
+                    pendingSvgFile = null;
+                    pendingIsSvg = false;
+                });
+            }
+        });
     </script>
 </body>
 </html>
