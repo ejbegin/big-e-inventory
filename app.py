@@ -187,7 +187,8 @@ def get_cached_catalog(force_refresh=False):
     cache: Dict[str, Any] = {"last_updated_at": None, "objects": {}}
     try:
         categories = [o.dict() for o in client.catalog.list(types='CATEGORY')]
-        items = [o.dict() for o in client.catalog.list(types='ITEM')]
+        raw_items = [o.dict() for o in client.catalog.list(types='ITEM')]
+        items = [o for o in raw_items if not o.get('item_data', {}).get('is_archived', False)]
         all_objects = categories + items
         cache["last_updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
         cache["objects"] = {o['id']: o for o in all_objects if o.get('id')}
