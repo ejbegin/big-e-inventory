@@ -419,12 +419,13 @@
                 
                 
                 const parLevel = (settings[id] && settings[id].par_level) || 0;
+                const parLevelUnits = parLevel * caseSize;
                 
                 // Planner logic: Calculate suggested transfer
                 let suggestedQty = 0;
-                if (parLevel > 0 && inv[bigEId].total < parLevel) {
-                    const needed = parLevel - inv[bigEId].total;
-                    const neededCases = Math.ceil(needed / caseSize);
+                if (parLevelUnits > 0 && inv[bigEId].total < parLevelUnits) {
+                    const neededUnits = parLevelUnits - inv[bigEId].total;
+                    const neededCases = Math.ceil(neededUnits / caseSize);
                     suggestedQty = Math.min(neededCases, carInv.cases + (carInv.remainder > 0 ? 1 : 0));
                 }
                 
