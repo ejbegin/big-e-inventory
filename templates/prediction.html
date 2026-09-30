@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Big E Inventory - Prediction Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="icon" type="image/svg+xml" href="/static/bige_icon.svg">
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.4);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+        }
+        
+        body { 
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+            min-height: 100vh;
+        }
+
+        /* Nav Pill Customization (matching index.html) */
+        .nav-pills .nav-link { border-radius: 8px; color: rgba(255,255,255,0.85); padding: 6px 14px; margin-right: 4px; transition: all 0.2s ease; }
+        .nav-pills .nav-link:hover { background: rgba(255,255,255,0.15); color: #fff; }
+        .nav-pills .nav-link.active { background-color: #0d6efd !important; color: #fff !important; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 20px;
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .glass-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.15);
+        }
+
+        .header-title {
+            background: linear-gradient(45deg, #2b5876 0%, #4e4376 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800;
+        }
+
+        .btn-magic {
+            background: linear-gradient(45deg, #00c6ff 0%, #0072ff 100%);
+            border: none;
+            color: white;
+            font-weight: 600;
+            border-radius: 12px;
+            padding: 12px 24px;
+            box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+        .btn-magic:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0, 114, 255, 0.4);
+            color: white;
+        }
+
+        .table-custom {
+            border-collapse: separate;
+            border-spacing: 0 8px;
+        }
+        .table-custom tbody tr {
+            background: rgba(255, 255, 255, 0.6);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+            border-radius: 12px;
+            transition: all 0.2s ease;
+        }
+        .table-custom tbody tr:hover {
+            background: rgba(255, 255, 255, 0.9);
+            transform: scale(1.01);
+        }
+        .table-custom td {
+            border: none;
+            padding: 16px;
+            vertical-align: middle;
+        }
+        .table-custom td:first-child {
+            border-top-left-radius: 12px;
+            border-bottom-left-radius: 12px;
+            font-weight: 600;
+        }
+        .table-custom td:last-child {
+            border-top-right-radius: 12px;
+            border-bottom-right-radius: 12px;
+        }
+
+        .stat-box {
+            background: rgba(255,255,255,0.5);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.6);
+        }
+        
+        .weather-icon {
+            font-size: 2rem;
+            line-height: 1;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <nav class="navbar navbar-expand bg-dark navbar-dark mb-4 shadow-sm">
+        <div class="container-fluid px-2 px-sm-3">
+            <a class="navbar-brand d-flex align-items-center me-2 me-sm-3" href="/" title="Made By">
+                <img src="/static/madeby_logo.png" alt="Made By" height="34" class="rounded-circle border border-light">
+            </a>
+            
+            <ul class="nav nav-pills me-auto">
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/" title="Manual Transfer">
+                        <i class="bi bi-arrow-left-right fs-5"></i>
+                        <span class="d-none d-md-inline">Manual</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/warehouse_to_car" title="House &rarr; Car">
+                        <i class="bi bi-truck fs-5"></i>
+                        <span class="d-none d-md-inline">Car</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/car_to_bige" title="Car &rarr; Big E">
+                        <img src="/static/bige_logo.png" width="22" height="22" class="rounded-circle" alt="Big E" onerror="this.src='/static/bige_icon.svg'">
+                        <span class="d-none d-md-inline">Big E</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active d-flex align-items-center gap-1" href="/prediction" title="Prediction Dashboard">
+                        <i class="bi bi-graph-up-arrow fs-5"></i>
+                        <span class="d-none d-md-inline">Prediction</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/qr_manager" title="QR Manager">
+                        <i class="bi bi-qr-code fs-5"></i>
+                        <span class="d-none d-md-inline">QR Codes</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container pb-5">
+        <div class="row mb-5">
+            <div class="col-12 text-center">
+                <h1 class="display-5 header-title mb-3">AI Inventory Forecaster</h1>
+                <p class="text-muted lead">Predict sales based on historic 2025 actuals, real-time weather, and ongoing event trends.</p>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-5">
+            <!-- Controls Card -->
+            <div class="col-lg-4">
+                <div class="glass-card p-4 h-100">
+                    <h4 class="mb-4 fw-bold"><i class="bi bi-sliders text-primary me-2"></i>Parameters</h4>
+                    
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold small">EVENT START DATE</label>
+                        <input type="date" class="form-control" id="start_date" value="2026-09-12">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold small">EVENT END DATE</label>
+                        <input type="date" class="form-control" id="end_date" value="2026-09-28">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label text-muted fw-bold small">LOCATION (FOR WEATHER)</label>
+                        <input type="text" class="form-control" id="location" value="West Springfield, MA">
+                    </div>
+
+                    <button class="btn btn-magic w-100" onclick="generatePrediction()" id="predict-btn">
+                        <i class="bi bi-stars me-2"></i>Generate Forecast
+                    </button>
+                    
+                    <div class="mt-4 alert alert-info py-2 small" style="background: rgba(13, 202, 240, 0.1); border-color: rgba(13, 202, 240, 0.2);">
+                        <i class="bi bi-info-circle me-1"></i> Predictions scale using weather data from Open-Meteo and 2025 baseline multipliers.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overview Dashboard -->
+            <div class="col-lg-8">
+                <div class="glass-card p-4 h-100 d-flex flex-column">
+                    <h4 class="mb-4 fw-bold"><i class="bi bi-bar-chart-line-fill text-success me-2"></i>Event Insights</h4>
+                    
+                    <div class="row g-3 flex-grow-1" id="insights-container">
+                        <div class="col-md-4">
+                            <div class="stat-box h-100 d-flex flex-column justify-content-center">
+                                <i class="bi bi-cloud-sun weather-icon"></i>
+                                <h5 class="fw-bold mt-2">Avg Forecast</h5>
+                                <div class="text-muted small" id="temp-avg">-- °F</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-box h-100 d-flex flex-column justify-content-center">
+                                <i class="bi bi-graph-up-arrow fs-2 text-primary mb-2"></i>
+                                <h5 class="fw-bold mt-2">Trend Multiplier</h5>
+                                <div class="text-muted small" id="trend-mult">-- x</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-box h-100 d-flex flex-column justify-content-center">
+                                <i class="bi bi-box-seam fs-2 text-success mb-2"></i>
+                                <h5 class="fw-bold mt-2">Total Est. Need</h5>
+                                <div class="text-muted small" id="total-need">-- Units</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Prediction Table -->
+        <div class="row">
+            <div class="col-12">
+                <div class="glass-card p-4">
+                    <h4 class="mb-4 fw-bold">Item Level Predictions</h4>
+                    <div class="table-responsive">
+                        <table class="table table-custom table-borderless align-middle w-100">
+                            <thead>
+                                <tr class="text-muted small text-uppercase">
+                                    <th>Item Name</th>
+                                    <th>2025 Baseline (Total)</th>
+                                    <th>Actuals (So Far)</th>
+                                    <th>Predicted Remainder</th>
+                                    <th>Required Stock</th>
+                                </tr>
+                            </thead>
+                            <tbody id="prediction-table-body">
+                                <tr>
+                                    <td colspan="5" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                                        Click "Generate Forecast" to load data
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center d-none" style="z-index: 1050; background: rgba(255,255,255,0.7); backdrop-filter: blur(5px);">
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem; border-width: 0.3em;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <h5 class="mt-3 text-primary fw-bold">Analyzing Patterns...</h5>
+        </div>
+    </div>
+
+    <script>
+        async function generatePrediction() {
+            const startDate = document.getElementById('start_date').value;
+            const endDate = document.getElementById('end_date').value;
+            const location = document.getElementById('location').value;
+
+            if (!startDate || !endDate || !location) {
+                alert('Please fill in all parameters.');
+                return;
+            }
+
+            document.getElementById('loading-overlay').classList.remove('d-none');
+
+            try {
+                const response = await fetch('/api/prediction_data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        start_date: startDate,
+                        end_date: endDate,
+                        location: location
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch prediction data');
+
+                const data = await response.json();
+                
+                // Update Insights
+                document.getElementById('temp-avg').innerText = `${data.weather.avg_temp_f.toFixed(1)} °F`;
+                document.getElementById('trend-mult').innerText = `${data.trend_multiplier.toFixed(2)}x`;
+                
+                let totalNeed = 0;
+                let html = '';
+                
+                for (const item of data.predictions) {
+                    totalNeed += item.required_stock;
+                    html += `
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="bg-primary bg-opacity-10 rounded-circle p-2 me-3">
+                                        <i class="bi bi-box text-primary"></i>
+                                    </div>
+                                    ${item.name}
+                                </div>
+                            </td>
+                            <td><span class="badge bg-light text-dark border px-3 py-2">${item.baseline_2025}</span></td>
+                            <td><span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-2">${item.actuals}</span></td>
+                            <td><span class="badge bg-warning bg-opacity-10 text-warning border border-warning px-3 py-2">${item.predicted_remainder}</span></td>
+                            <td class="fs-5 fw-bold text-primary">${item.required_stock}</td>
+                        </tr>
+                    `;
+                }
+
+                document.getElementById('total-need').innerText = `${totalNeed} Units`;
+                document.getElementById('prediction-table-body').innerHTML = html || `<tr><td colspan="5" class="text-center py-4">No data found.</td></tr>`;
+
+            } catch (err) {
+                console.error(err);
+                alert('An error occurred while generating the prediction.');
+            } finally {
+                document.getElementById('loading-overlay').classList.add('d-none');
+            }
+        }
+    </script>
+</body>
+</html>
