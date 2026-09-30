@@ -1791,7 +1791,7 @@ def prediction_data():
             else:
                 adjusted_growth = item_growth_factor
 
-            predicted_remaining = int(round(expected_remaining_base * adjusted_growth))
+            predicted_remaining = round(expected_remaining_base * adjusted_growth)
             total_sales_history_sample += hist_total
             total_sales_2026_sample += actuals_qty
         elif actuals_qty > 0:
@@ -1802,7 +1802,7 @@ def prediction_data():
             daily_pace = actuals_qty / total_elapsed_days
             # Weight weekend days higher if remaining
             remaining_weight = sum([1.5 if d in ['Saturday', 'Sunday'] else 1.0 for d, c in remaining_dows.items() for _ in range(c)])
-            predicted_remaining = int(round(daily_pace * remaining_weight * weather_multiplier))
+            predicted_remaining = round(daily_pace * remaining_weight * weather_multiplier)
             baseline_for_display = f"New ({actuals_qty} so far)"
         else:
             # No past history and 0 sales so far: catalog item
