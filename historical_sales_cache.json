@@ -1,0 +1,863 @@
+{
+  "2025": {
+    "items": {
+      "Vegan Honey  - 12 oz. (340 g.)": {
+        "qty": 23.0,
+        "var_ids": [
+          "V5BGE6ZGFVCM7L75R7KRQCYO"
+        ],
+        "price": 12.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 5.0,
+          "Saturday": 4.0,
+          "Friday": 5.0,
+          "Thursday": 1.0,
+          "Wednesday": 7.0
+        }
+      },
+      "Spiced Pear Jam - 8 oz. (226 g.)": {
+        "qty": 47.0,
+        "var_ids": [
+          "4WNCFUWHIXVO6VTXFSWLT7C7"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 14.0,
+          "Saturday": 13.0,
+          "Friday": 7.0,
+          "Thursday": 7.0,
+          "Wednesday": 5.0
+        }
+      },
+      "Spiced Hot Pepper Jam  - 8 oz. (226 g.)": {
+        "qty": 63.0,
+        "var_ids": [
+          "RHZ6NRAUTX64RRICEQOSOBZT"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 13.0,
+          "Saturday": 8.0,
+          "Friday": 17.0,
+          "Thursday": 13.0,
+          "Wednesday": 11.0
+        }
+      },
+      "Smoky Spiced Peach Jam  - 8 oz. (226 g.)": {
+        "qty": 62.0,
+        "var_ids": [
+          "TOCJQD5LCXSRWQU7UIWDHKYX"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Monday": 2.0,
+          "Sunday": 15.0,
+          "Saturday": 14.0,
+          "Friday": 9.0,
+          "Thursday": 10.0,
+          "Wednesday": 12.0
+        }
+      },
+      "Honey Peanut Butter": {
+        "qty": 732.0,
+        "var_ids": [
+          "NMWDRFQOS6DLMHVDKLJAO7KD"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Monday": 2.0,
+          "Sunday": 145.0,
+          "Saturday": 175.0,
+          "Friday": 136.0,
+          "Thursday": 132.0,
+          "Wednesday": 142.0
+        }
+      },
+      "Pickle Fidget": {
+        "qty": 209.0,
+        "var_ids": [
+          "ZHII6VXAGZ7AOFO5RQG32JNP"
+        ],
+        "price": 1.0,
+        "by_dow": {
+          "Monday": 3.0,
+          "Sunday": 30.0,
+          "Saturday": 28.0,
+          "Friday": 46.0,
+          "Thursday": 37.0,
+          "Wednesday": 65.0
+        }
+      },
+      "Spiced Dandelion Jelly - 8 oz. (226 g.)": {
+        "qty": 89.0,
+        "var_ids": [
+          "RYHKCFC4VLWNZ4UTEQOB5JZN"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Monday": 8.0,
+          "Sunday": 24.0,
+          "Saturday": 20.0,
+          "Friday": 7.0,
+          "Thursday": 12.0,
+          "Wednesday": 18.0
+        }
+      },
+      "Spiced Elderberry Honey Jelly - 8 oz. (226 g.)": {
+        "qty": 146.0,
+        "var_ids": [
+          "JDMUZ7SGH2J2NMYQOGGR4XZT"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 43.0,
+          "Saturday": 43.0,
+          "Friday": 22.0,
+          "Thursday": 20.0,
+          "Wednesday": 17.0
+        }
+      },
+      "Spiced Strawberry Rhubarb Jam - 8 oz. (226 g.)": {
+        "qty": 109.0,
+        "var_ids": [
+          "XKVS56VZ5F7MRKXBIJUYUUZU"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Monday": 2.0,
+          "Sunday": 21.0,
+          "Saturday": 29.0,
+          "Friday": 15.0,
+          "Thursday": 16.0,
+          "Wednesday": 26.0
+        }
+      },
+      "Spiced Sugar Plum Jam - 8 oz. (226 g.)": {
+        "qty": 54.0,
+        "var_ids": [
+          "ILVGI2Q7EWE7GHOCXR2WX3YI"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 18.0,
+          "Saturday": 10.0,
+          "Friday": 5.0,
+          "Thursday": 11.0,
+          "Wednesday": 9.0
+        }
+      },
+      "Spiced Carrot Cake Jam - 8 oz. (226 g.)": {
+        "qty": 96.0,
+        "var_ids": [
+          "6OXKLYFJ7AQIHSXJDND6EHE2"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Monday": 2.0,
+          "Sunday": 21.0,
+          "Saturday": 24.0,
+          "Friday": 13.0,
+          "Thursday": 16.0,
+          "Wednesday": 20.0
+        }
+      },
+      "Dill Pickle Hot Sauce - 5 oz. (141 g.)": {
+        "qty": 88.0,
+        "var_ids": [
+          "P4PYCSE57POZL6S3ZS6APEEB"
+        ],
+        "price": 12.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 22.0,
+          "Saturday": 25.0,
+          "Friday": 21.0,
+          "Thursday": 6.0,
+          "Wednesday": 13.0
+        }
+      },
+      "Spiced Lavender Jelly - 8 oz. (226 g.)": {
+        "qty": 89.0,
+        "var_ids": [
+          "EQPZPWP46KWTMSDX3OMD2Q2B"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 24.0,
+          "Saturday": 18.0,
+          "Friday": 17.0,
+          "Thursday": 11.0,
+          "Wednesday": 18.0
+        }
+      },
+      "Extreme Hot Sauce - 5 oz. (141 g.)": {
+        "qty": 42.0,
+        "var_ids": [
+          "PWNM35SFRKOL36WCNF2SMM5Z"
+        ],
+        "price": 15.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 10.0,
+          "Saturday": 7.0,
+          "Friday": 9.0,
+          "Thursday": 8.0,
+          "Wednesday": 7.0
+        }
+      },
+      "Garlic Dill Pickles  - 16 oz. (453 g.)": {
+        "qty": 111.0,
+        "var_ids": [
+          "V3NMKWPNONM2WLMWSNZ25Q5R"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Sunday": 27.0,
+          "Saturday": 31.0,
+          "Friday": 18.0,
+          "Thursday": 15.0,
+          "Wednesday": 20.0
+        }
+      },
+      "NO SUGAR ADDED Spiced Blueberry Jam - 8 oz. (226 g.)": {
+        "qty": 32.0,
+        "var_ids": [
+          "YW6F3URXNWV2BTTQUDDORUEY"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Sunday": 9.0,
+          "Saturday": 8.0,
+          "Friday": 3.0,
+          "Thursday": 9.0,
+          "Wednesday": 3.0
+        }
+      },
+      "Twinkle Honey TM  - 12 oz. (340 g.)": {
+        "qty": 65.0,
+        "var_ids": [
+          "FNCXMH2C5PY3ZAH2UJ46V65L"
+        ],
+        "price": 12.0,
+        "by_dow": {
+          "Sunday": 19.0,
+          "Saturday": 19.0,
+          "Friday": 6.0,
+          "Thursday": 6.0,
+          "Wednesday": 15.0
+        }
+      },
+      "Spiced White Peach Jam  - 8 oz. (226 g.)": {
+        "qty": 64.0,
+        "var_ids": [
+          "GJYI5KJ3AAVHL5TXCLA7VGPJ"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Sunday": 15.0,
+          "Saturday": 16.0,
+          "Friday": 7.0,
+          "Thursday": 8.0,
+          "Wednesday": 18.0
+        }
+      },
+      "Spiced Blueberry Jam - 8 oz. (226 g.)": {
+        "qty": 68.0,
+        "var_ids": [
+          "7ANCWLQ6JDMXROLM27RDWGW4"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Sunday": 14.0,
+          "Saturday": 11.0,
+          "Friday": 10.0,
+          "Thursday": 19.0,
+          "Wednesday": 14.0
+        }
+      },
+      "Spiced Strawberry Jam - 8 oz. (226 g.)": {
+        "qty": 71.0,
+        "var_ids": [
+          "JPNRIMN3M26IQR6DD6EKWKOU"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Sunday": 25.0,
+          "Saturday": 18.0,
+          "Friday": 13.0,
+          "Thursday": 11.0,
+          "Wednesday": 4.0
+        }
+      },
+      "Hot Sauce Gift Set": {
+        "qty": 16.0,
+        "var_ids": [
+          "6HTWBY4MBM2VOT23PCHQUPAJ"
+        ],
+        "price": 35.0,
+        "by_dow": {
+          "Sunday": 7.0,
+          "Saturday": 4.0,
+          "Friday": 1.0,
+          "Thursday": 1.0,
+          "Wednesday": 3.0
+        }
+      },
+      "Cross Street Farm Tea": {
+        "qty": 24.0,
+        "var_ids": [
+          "FZ477K5UEUSKT25RXV736ZEM"
+        ],
+        "price": 5.0,
+        "by_dow": {
+          "Sunday": 9.0,
+          "Saturday": 5.0,
+          "Friday": 4.0,
+          "Thursday": 2.0,
+          "Wednesday": 4.0
+        }
+      },
+      "Hot Honey  - 12 oz. (340 g.)": {
+        "qty": 70.0,
+        "var_ids": [
+          "U5PCG2K3ENC4ZOIJ2JVMRHPW"
+        ],
+        "price": 12.0,
+        "by_dow": {
+          "Sunday": 19.0,
+          "Saturday": 21.0,
+          "Friday": 10.0,
+          "Thursday": 8.0,
+          "Wednesday": 12.0
+        }
+      },
+      "Original Hot Sauce - 5 oz. (141 g.)": {
+        "qty": 42.0,
+        "var_ids": [
+          "6PLRFTR3NPZHEGTRXGDONJGI"
+        ],
+        "price": 12.0,
+        "by_dow": {
+          "Sunday": 10.0,
+          "Saturday": 7.0,
+          "Friday": 6.0,
+          "Thursday": 11.0,
+          "Wednesday": 8.0
+        }
+      },
+      "Whole Grain Honey Maple Mustard - 4 oz. (113 g.)": {
+        "qty": 30.0,
+        "var_ids": [
+          "DMJTL6QD6HRDJ63G3XZ4PNQM"
+        ],
+        "price": 5.0,
+        "by_dow": {
+          "Sunday": 9.0,
+          "Saturday": 6.0,
+          "Friday": 7.0,
+          "Thursday": 6.0,
+          "Wednesday": 2.0
+        }
+      },
+      "PB&J Keychain": {
+        "qty": 164.0,
+        "var_ids": [
+          "OVLXW3NFS3HFRE2NKHSHOKM7"
+        ],
+        "price": 0.5,
+        "by_dow": {
+          "Sunday": 6.0,
+          "Saturday": 71.0,
+          "Friday": 37.0,
+          "Thursday": 28.0,
+          "Wednesday": 22.0
+        }
+      },
+      "PB&J Sticker": {
+        "qty": 27.0,
+        "var_ids": [
+          "3YM3GTGM2HEM5CYPSP7YMADY"
+        ],
+        "price": 1.0,
+        "by_dow": {
+          "Sunday": 3.0,
+          "Saturday": 9.0,
+          "Friday": 5.0,
+          "Thursday": 4.0,
+          "Wednesday": 6.0
+        }
+      },
+      "Spiced Pumpkin Pie Spread - 8 oz. (226 g.)": {
+        "qty": 105.0,
+        "var_ids": [
+          "RFKH2BAP5RISMZPAM3M3N2XZ"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Sunday": 12.0,
+          "Saturday": 32.0,
+          "Friday": 30.0,
+          "Thursday": 10.0,
+          "Wednesday": 21.0
+        }
+      },
+      "PB&J Temporary Tattoo": {
+        "qty": 32.0,
+        "var_ids": [
+          "GLM64UFEOK7QOSFLFWNPXFCJ"
+        ],
+        "price": 0.5,
+        "by_dow": {
+          "Sunday": 4.0,
+          "Saturday": 8.0,
+          "Friday": 2.0,
+          "Thursday": 2.0,
+          "Wednesday": 16.0
+        }
+      },
+      "Hot Garlic Dill Pickles  - 16 oz. (453 g.)": {
+        "qty": 87.0,
+        "var_ids": [
+          "EYIY6ENVTSC7PIKQC64IMA5R"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Sunday": 3.0,
+          "Saturday": 30.0,
+          "Friday": 19.0,
+          "Thursday": 13.0,
+          "Wednesday": 22.0
+        }
+      },
+      "Spiced Banana Bread Spread - 8 oz. (226 g.)": {
+        "qty": 223.0,
+        "var_ids": [
+          "HEJIXAKKA4HUCU2NXGG7FJVR"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Saturday": 51.0,
+          "Friday": 58.0,
+          "Thursday": 46.0,
+          "Wednesday": 68.0
+        }
+      },
+      "Pepper Fidget": {
+        "qty": 46.0,
+        "var_ids": [
+          "WSRVVXCGQYGXP2OLRLYAZBYW"
+        ],
+        "price": 1.0,
+        "by_dow": {
+          "Saturday": 3.0,
+          "Friday": 22.0,
+          "Thursday": 8.0,
+          "Wednesday": 13.0
+        }
+      },
+      "PB Fidget": {
+        "qty": 61.0,
+        "var_ids": [
+          "X6UUVBJBLFLTICZ5SDZKE2JS"
+        ],
+        "price": 1.0,
+        "by_dow": {
+          "Friday": 22.0,
+          "Thursday": 13.0,
+          "Wednesday": 26.0
+        }
+      },
+      "Jelly Fidget": {
+        "qty": 49.0,
+        "var_ids": [
+          "QTFNIWHOXFU4YBGFNG7GSAUA"
+        ],
+        "price": 1.0,
+        "by_dow": {
+          "Friday": 14.0,
+          "Thursday": 10.0,
+          "Wednesday": 25.0
+        }
+      },
+      "Bee Fidget": {
+        "qty": 32.0,
+        "var_ids": [
+          "YA4QGODNTBI4VS7TJU3PPR7B"
+        ],
+        "price": 1.0,
+        "by_dow": {
+          "Friday": 12.0,
+          "Thursday": 13.0,
+          "Wednesday": 7.0
+        }
+      }
+    }
+  },
+  "2024": {
+    "items": {
+      "Honey Peanut Butter": {
+        "qty": 622.0,
+        "var_ids": [
+          "NMWDRFQOS6DLMHVDKLJAO7KD"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Monday": 14.0,
+          "Sunday": 160.0,
+          "Saturday": 171.0,
+          "Friday": 182.0,
+          "Thursday": 95.0
+        }
+      },
+      "Garlic Dill Pickles": {
+        "qty": 73.0,
+        "var_ids": [
+          "V3NMKWPNONM2WLMWSNZ25Q5R"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Monday": 2.0,
+          "Sunday": 17.0,
+          "Saturday": 22.0,
+          "Friday": 20.0,
+          "Thursday": 12.0
+        }
+      },
+      "Spiced Strawberry Rhubarb Jam - 8 oz. (226 g.)": {
+        "qty": 99.0,
+        "var_ids": [
+          "XKVS56VZ5F7MRKXBIJUYUUZU"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Monday": 2.0,
+          "Sunday": 27.0,
+          "Saturday": 24.0,
+          "Friday": 23.0,
+          "Thursday": 23.0
+        }
+      },
+      "Dill Pickle Hot Sauce": {
+        "qty": 201.0,
+        "var_ids": [
+          "P4PYCSE57POZL6S3ZS6APEEB"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Monday": 5.0,
+          "Sunday": 69.0,
+          "Saturday": 54.0,
+          "Friday": 45.0,
+          "Thursday": 28.0
+        }
+      },
+      "Spiced Hot Pepper Jam  - 8 oz. (226 g.)": {
+        "qty": 84.0,
+        "var_ids": [
+          "RHZ6NRAUTX64RRICEQOSOBZT"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 26.0,
+          "Saturday": 25.0,
+          "Friday": 21.0,
+          "Thursday": 11.0
+        }
+      },
+      "Hot Honey": {
+        "qty": 120.0,
+        "var_ids": [
+          "U5PCG2K3ENC4ZOIJ2JVMRHPW"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Monday": 2.0,
+          "Sunday": 39.0,
+          "Saturday": 32.0,
+          "Friday": 31.0,
+          "Thursday": 16.0
+        }
+      },
+      "Spiced Pear Jam - 8 oz. (226 g.)": {
+        "qty": 69.0,
+        "var_ids": [
+          "4WNCFUWHIXVO6VTXFSWLT7C7"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Monday": 3.0,
+          "Sunday": 22.0,
+          "Saturday": 19.0,
+          "Friday": 11.0,
+          "Thursday": 14.0
+        }
+      },
+      "Smoky Spiced Peach Jam  - 8 oz. (226 g.)": {
+        "qty": 56.0,
+        "var_ids": [
+          "TOCJQD5LCXSRWQU7UIWDHKYX"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 19.0,
+          "Saturday": 19.0,
+          "Friday": 11.0,
+          "Thursday": 6.0
+        }
+      },
+      "NO SUGAR ADDED Spiced Blueberry Jam - 8 oz. (226 g.)": {
+        "qty": 55.0,
+        "var_ids": [
+          "YW6F3URXNWV2BTTQUDDORUEY"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 20.0,
+          "Saturday": 11.0,
+          "Friday": 14.0,
+          "Thursday": 9.0
+        }
+      },
+      "Hot Garlic Dill Pickles": {
+        "qty": 62.0,
+        "var_ids": [
+          "EYIY6ENVTSC7PIKQC64IMA5R"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 19.0,
+          "Saturday": 15.0,
+          "Friday": 14.0,
+          "Thursday": 13.0
+        }
+      },
+      "Spiced Blueberry Jam - 8 oz. (226 g.)": {
+        "qty": 89.0,
+        "var_ids": [
+          "7ANCWLQ6JDMXROLM27RDWGW4"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 27.0,
+          "Saturday": 30.0,
+          "Friday": 16.0,
+          "Thursday": 15.0
+        }
+      },
+      "Twinkle Honey TM": {
+        "qty": 79.0,
+        "var_ids": [
+          "FNCXMH2C5PY3ZAH2UJ46V65L"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 30.0,
+          "Saturday": 20.0,
+          "Friday": 17.0,
+          "Thursday": 11.0
+        }
+      },
+      "PB&J Sticker": {
+        "qty": 150.0,
+        "var_ids": [
+          "GLM64UFEOK7QOSFLFWNPXFCJ"
+        ],
+        "price": 1.0,
+        "by_dow": {
+          "Monday": 1.0,
+          "Sunday": 43.0,
+          "Saturday": 46.0,
+          "Friday": 31.0,
+          "Thursday": 29.0
+        }
+      },
+      "Spiced Concord Grape Jelly - 8 oz. (226 g.)": {
+        "qty": 37.0,
+        "var_ids": [
+          "L5QDJGSYNFXMZBSVDFM2IN2P"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Sunday": 12.0,
+          "Saturday": 12.0,
+          "Friday": 10.0,
+          "Thursday": 3.0
+        }
+      },
+      "Spiced Fig Jam": {
+        "qty": 57.0,
+        "var_ids": [
+          "PPN3NVOQHW6DZXHK4VYSMSFJ"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Sunday": 16.0,
+          "Saturday": 18.0,
+          "Friday": 14.0,
+          "Thursday": 9.0
+        }
+      },
+      "Whole Grain Honey Maple Mustard - 4 oz. (113 g.)": {
+        "qty": 20.0,
+        "var_ids": [
+          "DMJTL6QD6HRDJ63G3XZ4PNQM"
+        ],
+        "price": 5.0,
+        "by_dow": {
+          "Sunday": 6.0,
+          "Saturday": 5.0,
+          "Friday": 4.0,
+          "Thursday": 5.0
+        }
+      },
+      "Spiced Red Raspberry Jelly  - 8 oz. (226 g.)": {
+        "qty": 48.0,
+        "var_ids": [
+          "63FR3LDQQMG2IVMVXWRN3CRG"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Sunday": 13.0,
+          "Saturday": 12.0,
+          "Friday": 14.0,
+          "Thursday": 9.0
+        }
+      },
+      "Spiced Strawberry Jam - 8 oz. (226 g.)": {
+        "qty": 59.0,
+        "var_ids": [
+          "JPNRIMN3M26IQR6DD6EKWKOU"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Sunday": 13.0,
+          "Saturday": 15.0,
+          "Friday": 18.0,
+          "Thursday": 13.0
+        }
+      },
+      "Spiced Apple Jelly - 8 oz. (226 g.)": {
+        "qty": 32.0,
+        "var_ids": [
+          "CXPIEMLNAKEBHBDVWJVPMO4Y"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Sunday": 16.0,
+          "Saturday": 7.0,
+          "Friday": 4.0,
+          "Thursday": 5.0
+        }
+      },
+      "Original Hot Sauce": {
+        "qty": 82.0,
+        "var_ids": [
+          "6PLRFTR3NPZHEGTRXGDONJGI"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Sunday": 26.0,
+          "Saturday": 25.0,
+          "Friday": 17.0,
+          "Thursday": 14.0
+        }
+      },
+      "Cross Street Farm Tea": {
+        "qty": 26.0,
+        "var_ids": [
+          "FZ477K5UEUSKT25RXV736ZEM"
+        ],
+        "price": 5.0,
+        "by_dow": {
+          "Sunday": 8.0,
+          "Saturday": 10.0,
+          "Friday": 2.0,
+          "Thursday": 6.0
+        }
+      },
+      "Spiced Elderberry Honey Jelly": {
+        "qty": 109.0,
+        "var_ids": [
+          "JDMUZ7SGH2J2NMYQOGGR4XZT"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Sunday": 28.0,
+          "Saturday": 30.0,
+          "Friday": 30.0,
+          "Thursday": 21.0
+        }
+      },
+      "Spiced White Peach Jam  - 8 oz. (226 g.)": {
+        "qty": 59.0,
+        "var_ids": [
+          "GJYI5KJ3AAVHL5TXCLA7VGPJ"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Sunday": 8.0,
+          "Saturday": 17.0,
+          "Friday": 21.0,
+          "Thursday": 13.0
+        }
+      },
+      "Spiced Pumpkin Spread - 8 oz. (226 g.)": {
+        "qty": 72.0,
+        "var_ids": [
+          "RFKH2BAP5RISMZPAM3M3N2XZ"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Sunday": 12.0,
+          "Saturday": 33.0,
+          "Friday": 19.0,
+          "Thursday": 8.0
+        }
+      },
+      "Extreme Hot Sauce": {
+        "qty": 38.0,
+        "var_ids": [
+          "PWNM35SFRKOL36WCNF2SMM5Z"
+        ],
+        "price": 10.0,
+        "by_dow": {
+          "Saturday": 12.0,
+          "Friday": 14.0,
+          "Thursday": 12.0
+        }
+      },
+      "Spiced Dandelion Jelly - 8 oz. (226 g.)": {
+        "qty": 74.0,
+        "var_ids": [
+          "RYHKCFC4VLWNZ4UTEQOB5JZN"
+        ],
+        "price": 8.0,
+        "by_dow": {
+          "Saturday": 12.0,
+          "Friday": 32.0,
+          "Thursday": 30.0
+        }
+      },
+      "Stand Sales": {
+        "qty": 1.0,
+        "var_ids": [],
+        "price": 1822.85,
+        "by_dow": {
+          "Wednesday": 1.0
+        }
+      }
+    }
+  }
+}

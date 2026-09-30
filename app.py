@@ -1535,16 +1535,33 @@ def prediction():
 import urllib.request
 import json
 
+import urllib.request
+import json
+import re
+
+HISTORICAL_SALES_CACHE_FILE = os.path.join(DATA_DIR, 'historical_sales_cache.json')
+
+def normalize_item_name(name):
+    n = name.lower()
+    n = re.sub(r'\bspiced\b', '', n)
+    n = re.sub(r'-\s*\d+\s*oz.*', '', n)
+    n = re.sub(r'\b\d+\s*oz.*', '', n)
+    n = re.sub(r'[^a-z0-9]', ' ', n)
+    return ' '.join(n.split())
+
 @app.route('/api/prediction_data', methods=['POST'])
 def prediction_data():
-    data = request.json
-    start_date = data.get('start_date')
-    end_date = data.get('end_date')
+    data = request.json or {}
+    start_date_str = data.get('start_date', '2026-09-12')
+    end_date_str = data.get('end_date', '2026-10-04')
     location = data.get('location', 'West Springfield, MA')
-    
+    awareness_growth = float(data.get('awareness_growth', 1.15)) # e.g. 15% YoY growth
+    price_sensitivity = float(data.get('price_sensitivity', -0.5)) # standard price elasticity
+
+    # 1. Fetch weather via Open-Meteo
     avg_temp = 70.0
+    weather_multiplier = 1.0
     try:
-        # 1. Fetch weather via Open-Meteo
         geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(location)}&count=1"
         req = urllib.request.Request(geo_url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req) as response:
@@ -1553,83 +1570,307 @@ def prediction_data():
         if geo_resp.get('results'):
             lat = geo_resp['results'][0]['latitude']
             lon = geo_resp['results'][0]['longitude']
-            w_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit"
+            w_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&temperature_unit=fahrenheit&timezone=America/New_York"
             w_req = urllib.request.Request(w_url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(w_req) as response:
                 w_resp = json.loads(response.read().decode())
             
             if w_resp.get('daily'):
-                temps_max = w_resp['daily']['temperature_2m_max']
-                temps_min = w_resp['daily']['temperature_2m_min']
+                temps_max = w_resp['daily'].get('temperature_2m_max', [])
+                temps_min = w_resp['daily'].get('temperature_2m_min', [])
+                precip = w_resp['daily'].get('precipitation_probability_max', [])
                 if temps_max and temps_min:
                     avg_temp = sum(temps_max + temps_min) / len(temps_max + temps_min)
+                
+                # Bad weather / rain penalty or warm sunny boost
+                avg_precip = sum(precip) / len(precip) if precip else 0
+                temp_factor = 1.0 + ((avg_temp - 68.0) / 100.0)
+                rain_factor = 1.0 - (avg_precip / 300.0) # up to ~30% dampening on rainy events
+                weather_multiplier = round(max(0.7, min(1.3, temp_factor * rain_factor)), 2)
     except Exception as e:
         print(f"Weather fetch error: {e}")
 
-    catalog = get_cached_catalog()
-    objects = catalog.get('objects', [])
-    
-    bige_category_ids = set()
-    for o in objects:
-        if o.get('type') == 'CATEGORY':
-            cat_data = o.get('category_data', {})
-            if 'big e' in cat_data.get('name', '').lower():
-                bige_category_ids.add(o.get('id'))
-                
-    bige_items = []
+    # 2. Fetch inventory counts across all locations (Warehouse, Car, Stand, Big E)
+    inv_map = {}
     try:
-        with open('item_settings.json', 'r') as f:
-            item_settings = json.load(f)
-    except:
-        item_settings = {}
+        inv_res = client.inventory.deprecated_batch_get_counts(states=['IN_STOCK']).dict()
+        loc_res = client.locations.list().dict()
+        loc_names = {l['id']: l['name'] for l in loc_res.get('locations', [])}
+        for c in inv_res.get('counts', []):
+            vid = c.get('catalog_object_id')
+            lid = c.get('location_id')
+            qty = int(float(c.get('quantity', 0)))
+            lname = loc_names.get(lid, lid)
+            if vid not in inv_map:
+                inv_map[vid] = {'total': 0, 'bige': 0, 'car': 0, 'stand': 0, 'warehouse': 0}
+            inv_map[vid]['total'] += qty
+            ln_lower = lname.lower()
+            if 'big e' in ln_lower: inv_map[vid]['bige'] += qty
+            elif 'car' in ln_lower: inv_map[vid]['car'] += qty
+            elif 'stand' in ln_lower: inv_map[vid]['stand'] += qty
+            elif 'warehouse' in ln_lower: inv_map[vid]['warehouse'] += qty
+    except Exception as e:
+        print(f"Inventory fetch error: {e}")
 
-    for o in objects:
-        if o.get('type') == 'ITEM':
-            item_data = o.get('item_data', {})
-            cat_id = item_data.get('category_id')
-            is_bige = False
-            if cat_id in bige_category_ids:
-                is_bige = True
-            elif item_settings.get(o.get('id'), {}).get('visible', False):
-                is_bige = True
-            
-            if is_bige:
-                bige_items.append({
-                    'id': o.get('id'),
-                    'name': item_data.get('name', 'Unknown')
-                })
-                
-    if not bige_items:
-        bige_items = [{'id': o['id'], 'name': o.get('item_data',{}).get('name','')} for o in objects if o.get('type') == 'ITEM'][:20]
+    # 3. Load historical cache (2024 & 2025 actuals)
+    historical_cache = {}
+    if os.path.exists(HISTORICAL_SALES_CACHE_FILE):
+        try:
+            with open(HISTORICAL_SALES_CACHE_FILE, 'r') as f:
+                historical_cache = json.load(f)
+        except Exception as e:
+            print(f"Error loading historical cache: {e}")
+
+    h25_items = {normalize_item_name(k): (k, v) for k, v in historical_cache.get('2025', {}).get('items', {}).items()}
+    h24_items = {normalize_item_name(k): (k, v) for k, v in historical_cache.get('2024', {}).get('items', {}).items()}
+
+    # 4. Fetch 2026 actual sales so far
+    # Search orders from event start date up to now
+    sales_2026 = {} # {norm_name: {'qty': int, 'by_dow': {}}}
+    orders_2026_count = 0
+    actual_days_with_sales = set()
+    try:
+        s_dt = f"{start_date_str}T00:00:00Z"
+        now_dt = datetime.datetime.now(datetime.timezone.utc).isoformat()
         
-    predictions = []
-    # Trend multiplier: dynamically adjust based on weather delta and actuals
-    # Base multiplier 1.0 + slight variation for temperature differences
-    trend_multiplier = 1.0 + ((avg_temp - 65.0) / 100.0)
-    if trend_multiplier < 0.5: trend_multiplier = 0.5
-    if trend_multiplier > 2.0: trend_multiplier = 2.0
+        # Get active location IDs
+        all_locs = client.locations.list().dict().get('locations', [])
+        loc_ids = [l['id'] for l in all_locs]
+        
+        cursor = None
+        while True:
+            kwargs = {
+                'location_ids': loc_ids,
+                'query': {
+                    'filter': {
+                        'date_time_filter': {
+                            'created_at': {'start_at': s_dt, 'end_at': now_dt}
+                        },
+                        'state_filter': {'states': ['COMPLETED']}
+                    }
+                },
+                'limit': 500
+            }
+            if cursor: kwargs['cursor'] = cursor
+            r = client.orders.search(**kwargs).dict()
+            orders = r.get('orders', [])
+            orders_2026_count += len(orders)
+            for o in orders:
+                d = o['created_at'][:10]
+                actual_days_with_sales.add(d)
+                dow = datetime.datetime.strptime(d, '%Y-%m-%d').strftime('%A')
+                for li in o.get('line_items', []):
+                    nm = li.get('name', 'Unknown')
+                    n_key = normalize_item_name(nm)
+                    qty = float(li.get('quantity', 0))
+                    if n_key not in sales_2026:
+                        sales_2026[n_key] = {'qty': 0, 'by_dow': {}}
+                    sales_2026[n_key]['qty'] += qty
+                    sales_2026[n_key]['by_dow'][dow] = sales_2026[n_key]['by_dow'].get(dow, 0) + qty
+            cursor = r.get('cursor')
+            if not cursor: break
+    except Exception as e:
+        print(f"2026 sales fetch error: {e}")
+
+    # 5. Build event calendar: Day-of-week breakdown for elapsed days vs remaining days
+    try:
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    except Exception:
+        start_date = datetime.date(2026, 9, 12)
+        end_date = datetime.date(2026, 10, 4)
+
+    today = datetime.date.today()
     
-    import random
-    random.seed(datetime.datetime.now().timestamp())
-    for item in bige_items:
-        # Mock 2025 historicals as an algorithm placeholder.
-        # In a full deployment, this calls client.orders.search_orders for dates "2025-09-24" to "2025-09-28".
-        baseline = random.randint(50, 400)
-        actuals = int(baseline * 0.3 * trend_multiplier)
-        predicted_remainder = int(baseline * 0.7 * trend_multiplier)
-        predictions.append({
-            'name': item['name'],
-            'baseline_2025': baseline,
-            'actuals': actuals,
-            'predicted_remainder': predicted_remainder,
-            'required_stock': predicted_remainder
-        })
+    elapsed_dows = {}
+    remaining_dows = {}
+    curr = start_date
+    while curr <= end_date:
+        dow = curr.strftime('%A')
+        # If the day is past or has recorded sales in 2026, count as elapsed
+        if curr < today or curr.strftime('%Y-%m-%d') in actual_days_with_sales:
+            elapsed_dows[dow] = elapsed_dows.get(dow, 0) + 1
+        else:
+            remaining_dows[dow] = remaining_dows.get(dow, 0) + 1
+        curr += datetime.timedelta(days=1)
+
+    # 6. Catalog Items & Prediction Generation
+    catalog = get_cached_catalog()
+    catalog_items = [o for o in catalog.get('objects', []) if o.get('type') == 'ITEM']
+    
+    irrelevant_keywords = ['membership', 'box', 'gift set', 'cutting board', 'spoons', 'soap', 'eggs']
+
+    predictions = []
+    total_sales_history_sample = 0
+    total_sales_2026_sample = 0
+
+    for item_obj in catalog_items:
+        item_data = item_obj.get('item_data', {})
+        name = item_data.get('name', 'Unknown')
         
-    predictions.sort(key=lambda x: x['required_stock'], reverse=True)
+        # Filter out non-event items (e.g. memberships, gift baskets)
+        if any(irr in name.lower() for irr in irrelevant_keywords):
+            continue
+            
+        norm_name = normalize_item_name(name)
+        variations = item_data.get('variations', [])
+        
+        # Calculate current stock across all locations
+        item_stock = {'total': 0, 'bige': 0, 'car': 0, 'stand': 0, 'warehouse': 0}
+        curr_price = 0.0
+        for v in variations:
+            vid = v.get('id')
+            p = float(v.get('item_variation_data', {}).get('price_money', {}).get('amount', 0)) / 100.0
+            if p > curr_price:
+                curr_price = p
+            if vid in inv_map:
+                for loc_k in ['total', 'bige', 'car', 'stand', 'warehouse']:
+                    item_stock[loc_k] += inv_map[vid][loc_k]
+
+        # Multi-year historical like-day matching
+        m25 = h25_items.get(norm_name)
+        m24 = h24_items.get(norm_name)
+        
+        hist_days = {}
+        hist_total = 0
+        hist_price = curr_price
+        
+        if m25 and m24:
+            # Multi-year average (weighted 65% on 2025, 35% on 2024)
+            d25 = m25[1].get('by_dow', {})
+            d24 = m24[1].get('by_dow', {})
+            all_dows = set(list(d25.keys()) + list(d24.keys()))
+            for dow in all_dows:
+                hist_days[dow] = (d25.get(dow, 0) * 0.65) + (d24.get(dow, 0) * 0.35)
+            hist_total = int((m25[1].get('qty', 0) * 0.65) + (m24[1].get('qty', 0) * 0.35))
+            hist_price = m25[1].get('price') or curr_price
+        elif m25:
+            hist_days = m25[1].get('by_dow', {})
+            hist_total = int(m25[1].get('qty', 0))
+            hist_price = m25[1].get('price') or curr_price
+        elif m24:
+            hist_days = m24[1].get('by_dow', {})
+            hist_total = int(m24[1].get('qty', 0))
+            hist_price = m24[1].get('price') or curr_price
+
+        # Actuals so far in 2026
+        act_info = sales_2026.get(norm_name, {'qty': 0, 'by_dow': {}})
+        actuals_qty = int(act_info['qty'])
+
+        # Price factor: Price increase elasticity
+        # e.g., if price rose from $8 to $10 (+25%), quantity demand adjusts by elasticity (-0.5 * 25% = -12.5%)
+        price_factor = 1.0
+        if hist_price > 0 and curr_price > 0 and curr_price != hist_price:
+            price_change_pct = (curr_price - hist_price) / hist_price
+            price_factor = max(0.6, min(1.4, 1.0 + (price_sensitivity * price_change_pct)))
+
+        # Awareness Growth factor applied to baseline demand
+        item_growth_factor = awareness_growth * price_factor * weather_multiplier
+
+        # Day-of-week based prediction:
+        # Sum expected baseline for remaining days of the week
+        is_new_item = (hist_total == 0 and actuals_qty > 0)
+        predicted_remaining = 0
+        baseline_for_display = hist_total
+
+        if hist_total > 0:
+            # Baseline expectation for remaining days based on specific day-of-week performance
+            expected_remaining_base = 0.0
+            expected_elapsed_base = 0.0
+            for dow, count in remaining_dows.items():
+                expected_remaining_base += hist_days.get(dow, 0) * count
+            for dow, count in elapsed_dows.items():
+                expected_elapsed_base += hist_days.get(dow, 0) * count
+
+            # Dynamic calibration: If this year's actuals for elapsed days are outperforming/underperforming,
+            # calculate this item's specific pace multiplier
+            if expected_elapsed_base > 5 and actuals_qty > 0:
+                item_pace = actuals_qty / (expected_elapsed_base * item_growth_factor)
+                # Blend item pace with general trend to avoid extreme variance
+                adjusted_growth = item_growth_factor * (0.6 * item_pace + 0.4)
+            else:
+                adjusted_growth = item_growth_factor
+
+            predicted_remaining = int(round(expected_remaining_base * adjusted_growth))
+            total_sales_history_sample += hist_total
+            total_sales_2026_sample += actuals_qty
+        elif actuals_qty > 0:
+            # NEW ITEM with 2026 actuals:
+            # Derive prediction from actual velocity on elapsed days projected onto remaining like days
+            total_elapsed_days = sum(elapsed_dows.values()) or 1
+            total_remaining_days = sum(remaining_dows.values()) or 1
+            daily_pace = actuals_qty / total_elapsed_days
+            # Weight weekend days higher if remaining
+            remaining_weight = sum([1.5 if d in ['Saturday', 'Sunday'] else 1.0 for d, c in remaining_dows.items() for _ in range(c)])
+            predicted_remaining = int(round(daily_pace * remaining_weight * weather_multiplier))
+            baseline_for_display = f"New ({actuals_qty} so far)"
+        else:
+            # No past history and 0 sales so far: catalog item
+            predicted_remaining = 0
+            baseline_for_display = 0
+
+        # Stockout evaluation
+        total_inv = item_stock['total']
+        bige_inv = item_stock['bige']
+        car_inv = item_stock['car']
+        stand_inv = item_stock['stand']
+        wh_inv = item_stock['warehouse']
+        
+        # Status determination
+        if predicted_remaining > 0:
+            if total_inv < predicted_remaining:
+                status = "CRITICAL_STOCKOUT" # Not enough across ALL locations!
+            elif bige_inv < predicted_remaining:
+                status = "TRANSFER_NEEDED" # Enough in network, but Big E booth needs transfer from Car/House
+            else:
+                status = "SAFE"
+        else:
+            status = "STABLE"
+
+        predictions.append({
+            'name': name,
+            'is_new_item': is_new_item,
+            'curr_price': curr_price,
+            'hist_price': hist_price,
+            'baseline_multi_year': baseline_for_display,
+            'actuals': actuals_qty,
+            'predicted_remainder': predicted_remaining,
+            'required_total': actuals_qty + predicted_remaining,
+            'inventory': {
+                'total': total_inv,
+                'bige': bige_inv,
+                'car': car_inv,
+                'stand': stand_inv,
+                'warehouse': wh_inv
+            },
+            'status': status
+        })
+
+    # Sort items: Top priority are items with highest required stock or stockout risk
+    predictions.sort(key=lambda x: (x['status'] == 'CRITICAL_STOCKOUT', x['predicted_remainder']), reverse=True)
+
+    # Calculate overall pace
+    trend_multiplier = round(weather_multiplier * awareness_growth, 2)
+    if total_sales_history_sample > 0 and total_sales_2026_sample > 0:
+        actual_vs_hist_ratio = (total_sales_2026_sample * (len(elapsed_dows) + len(remaining_dows))) / (total_sales_history_sample * (len(elapsed_dows) or 1))
+        trend_multiplier = round(max(0.7, min(2.5, actual_vs_hist_ratio * weather_multiplier)), 2)
 
     return jsonify({
-        'weather': {'avg_temp_f': avg_temp},
-        'trend_multiplier': trend_multiplier,
+        'weather': {
+            'avg_temp_f': avg_temp,
+            'multiplier': weather_multiplier
+        },
+        'calendar': {
+            'elapsed_days': sum(elapsed_dows.values()),
+            'remaining_days': sum(remaining_dows.values()),
+            'elapsed_dows': elapsed_dows,
+            'remaining_dows': remaining_dows
+        },
+        'factors': {
+            'awareness_growth': awareness_growth,
+            'trend_multiplier': trend_multiplier,
+            'orders_so_far': orders_2026_count
+        },
         'predictions': predictions
     })
 
