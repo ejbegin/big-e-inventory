@@ -1544,6 +1544,7 @@ HISTORICAL_SALES_CACHE_FILE = os.path.join(DATA_DIR, 'historical_sales_cache.jso
 def normalize_item_name(name):
     n = name.lower()
     n = re.sub(r'\bspiced\b', '', n)
+    n = re.sub(r'\bpie\b', '', n)
     n = re.sub(r'-\s*\d+\s*oz.*', '', n)
     n = re.sub(r'\b\d+\s*oz.*', '', n)
     n = re.sub(r'[^a-z0-9]', ' ', n)
