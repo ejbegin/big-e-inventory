@@ -1656,9 +1656,15 @@ def prediction_data():
             orders = r.get('orders', [])
             orders_2026_count += len(orders)
             for o in orders:
-                d = o['created_at'][:10]
+                created_raw = o.get('created_at', '')
+                try:
+                    order_dt = datetime.datetime.fromisoformat(created_raw.replace('Z', '+00:00')).astimezone()
+                    d = order_dt.strftime('%Y-%m-%d')
+                    dow = order_dt.strftime('%A')
+                except Exception:
+                    d = created_raw[:10]
+                    dow = datetime.datetime.strptime(d, '%Y-%m-%d').strftime('%A')
                 actual_days_with_sales.add(d)
-                dow = datetime.datetime.strptime(d, '%Y-%m-%d').strftime('%A')
                 for li in o.get('line_items', []):
                     nm = li.get('name', 'Unknown')
                     n_key = normalize_item_name(nm)
@@ -1680,15 +1686,16 @@ def prediction_data():
         start_date = datetime.date(2026, 9, 12)
         end_date = datetime.date(2026, 10, 4)
 
-    today = datetime.date.today()
+    today = datetime.datetime.now().astimezone().date()
     
     elapsed_dows = {}
     remaining_dows = {}
     curr = start_date
     while curr <= end_date:
         dow = curr.strftime('%A')
-        # If the day is past or has recorded sales in 2026, count as elapsed
-        if curr < today or curr.strftime('%Y-%m-%d') in actual_days_with_sales:
+        # If the day is strictly in the past, or is today with sales already recorded, it is elapsed.
+        # Future days (curr > today) can never be elapsed.
+        if curr < today or (curr == today and curr.strftime('%Y-%m-%d') in actual_days_with_sales):
             elapsed_dows[dow] = elapsed_dows.get(dow, 0) + 1
         else:
             remaining_dows[dow] = remaining_dows.get(dow, 0) + 1

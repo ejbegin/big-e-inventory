@@ -400,14 +400,11 @@
                 const caseSize = item.caseSize;
                 
                 const inv = getItemCounts(id, caseSize);
-                const carInv = inv[carId];
-                
-                // Only show items with inventory > 0 in car
-                if (!carInv || carInv.total === 0) return;
+                const carInv = inv[carId] || { cases: 0, remainder: 0, total: 0 };
 
                 const formatInv = (locId) => {
                     if (!locId) return 'N/A';
-                    const i = inv[locId];
+                    const i = inv[locId] || { cases: 0, remainder: 0, total: 0 };
                     if (i.cases === 0 && i.remainder === 0) return `<span class="text-muted">0</span>`;
                     let text = '';
                     if (i.cases > 0) text += `<span class="text-dark">${i.cases}c</span> `;
@@ -426,11 +423,12 @@
                 
                 const parLevel = (settings[id] && settings[id].par_level) || 0;
                 const parLevelUnits = parLevel * caseSize;
+                const bigETotal = inv[bigEId] ? inv[bigEId].total : 0;
                 
                 // Planner logic: Calculate suggested transfer
                 let suggestedQty = 0;
-                if (parLevelUnits > 0 && inv[bigEId].total < parLevelUnits) {
-                    const neededUnits = parLevelUnits - inv[bigEId].total;
+                if (parLevelUnits > 0 && bigETotal < parLevelUnits) {
+                    const neededUnits = parLevelUnits - bigETotal;
                     const neededCases = Math.ceil(neededUnits / caseSize);
                     suggestedQty = Math.min(neededCases, carInv.cases + (carInv.remainder > 0 ? 1 : 0));
                 }
@@ -477,7 +475,7 @@
             });
 
             if (container.innerHTML === '') {
-                container.innerHTML = '<div class="alert alert-info shadow-sm">No items in the Car available for transfer to Big E.</div>';
+                container.innerHTML = '<div class="alert alert-info shadow-sm">No visible items configured for transfer to Big E.</div>';
                 document.getElementById('submit-bottom').style.display = 'none';
             }
             
