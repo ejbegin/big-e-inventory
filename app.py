@@ -1671,9 +1671,12 @@ def prediction_data():
                     n_key = normalize_item_name(nm)
                     qty = float(li.get('quantity', 0))
                     if n_key not in sales_2026:
-                        sales_2026[n_key] = {'qty': 0, 'by_dow': {}}
+                        sales_2026[n_key] = {'qty': 0, 'by_dow': {}, 'by_date': {}}
                     sales_2026[n_key]['qty'] += qty
                     sales_2026[n_key]['by_dow'][dow] = sales_2026[n_key]['by_dow'].get(dow, 0) + qty
+                    if 'by_date' not in sales_2026[n_key]:
+                        sales_2026[n_key]['by_date'] = {}
+                    sales_2026[n_key]['by_date'][d] = sales_2026[n_key]['by_date'].get(d, 0) + qty
             cursor = r.get('cursor')
             if not cursor: break
     except Exception as e:
@@ -1688,15 +1691,34 @@ def prediction_data():
         end_date = datetime.date(2026, 10, 4)
 
     today = datetime.datetime.now().astimezone().date()
+    today_str = today.strftime('%Y-%m-%d')
     
+    calendar_days = []
     elapsed_dows = {}
     remaining_dows = {}
     curr = start_date
     while curr <= end_date:
+        d_str = curr.strftime('%Y-%m-%d')
         dow = curr.strftime('%A')
-        # If the day is strictly in the past, or is today with sales already recorded, it is elapsed.
-        # Future days (curr > today) can never be elapsed.
-        if curr < today or (curr == today and curr.strftime('%Y-%m-%d') in actual_days_with_sales):
+        dow_short = curr.strftime('%a')
+        fmt = f"{dow_short} {curr.month}/{curr.day}"
+        is_today = (curr == today)
+        is_past = (curr < today)
+        is_future = (curr > today)
+        is_remaining = (curr >= today)
+
+        calendar_days.append({
+            'date': d_str,
+            'dow': dow,
+            'dow_short': dow_short,
+            'formatted': fmt,
+            'is_today': is_today,
+            'is_past': is_past,
+            'is_future': is_future,
+            'is_remaining': is_remaining
+        })
+
+        if is_past:
             elapsed_dows[dow] = elapsed_dows.get(dow, 0) + 1
         else:
             remaining_dows[dow] = remaining_dows.get(dow, 0) + 1
@@ -1762,7 +1784,7 @@ def prediction_data():
             hist_price = m24[1].get('price') or curr_price
 
         # Actuals so far in 2026
-        act_info = sales_2026.get(norm_name, {'qty': 0, 'by_dow': {}})
+        act_info = sales_2026.get(norm_name, {'qty': 0, 'by_dow': {}, 'by_date': {}})
         actuals_qty = int(act_info['qty'])
 
         # Price factor: Price increase elasticity
@@ -1780,6 +1802,10 @@ def prediction_data():
         is_new_item = (hist_total == 0 and actuals_qty > 0)
         predicted_remaining = 0
         baseline_for_display = hist_total
+        daily_breakdown = {}
+        today_expected = 0
+
+        remaining_days_list = [d for d in calendar_days if d['is_remaining']]
 
         if hist_total > 0:
             # Baseline expectation for remaining days based on specific day-of-week performance
@@ -1792,34 +1818,113 @@ def prediction_data():
 
             # Dynamic calibration: If this year's actuals for elapsed days are outperforming/underperforming,
             # calculate this item's specific pace multiplier
-            if expected_elapsed_base > 5 and actuals_qty > 0:
-                item_pace = actuals_qty / (expected_elapsed_base * item_growth_factor)
+            past_actuals = sum(act_info.get('by_date', {}).get(d['date'], 0) for d in calendar_days if d['is_past'])
+            effective_actuals = past_actuals if (past_actuals > 0 and expected_elapsed_base > 5) else actuals_qty
+            if expected_elapsed_base > 5 and effective_actuals > 0:
+                item_pace = effective_actuals / (expected_elapsed_base * item_growth_factor)
                 # Blend item pace with general trend to avoid extreme variance
                 adjusted_growth = item_growth_factor * (0.6 * item_pace + 0.4)
             else:
                 adjusted_growth = item_growth_factor
 
-            predicted_remaining = round(expected_remaining_base * adjusted_growth)
+            raw_daily = [hist_days.get(d['dow'], 0) * adjusted_growth for d in remaining_days_list]
+            predicted_remaining = round(sum(raw_daily))
+            rounded_daily = [round(v) for v in raw_daily]
+            diff = predicted_remaining - sum(rounded_daily)
+            if diff != 0 and len(rounded_daily) > 0:
+                indices = sorted(range(len(raw_daily)), key=lambda i: raw_daily[i] - rounded_daily[i], reverse=(diff > 0))
+                for i in range(abs(diff)):
+                    idx = indices[i % len(indices)]
+                    rounded_daily[idx] += (1 if diff > 0 else -1)
+                    if rounded_daily[idx] < 0:
+                        rounded_daily[idx] = 0
+
+            for idx, d in enumerate(remaining_days_list):
+                d_str = d['date']
+                exp_v = rounded_daily[idx]
+                act_v = int(act_info.get('by_date', {}).get(d_str, 0))
+                daily_breakdown[d_str] = {
+                    'expected': exp_v,
+                    'actual': act_v,
+                    'type': 'expected',
+                    'is_today': d['is_today']
+                }
+                if d['is_today']:
+                    today_expected = exp_v
+
             total_sales_history_sample += hist_total
             total_sales_2026_sample += actuals_qty
         elif actuals_qty > 0:
             # NEW ITEM with 2026 actuals:
             # Derive prediction from actual velocity on elapsed days projected onto remaining like days
             total_elapsed_days = sum(elapsed_dows.values()) or 1
-            total_remaining_days = sum(remaining_dows.values()) or 1
             daily_pace = actuals_qty / total_elapsed_days
             # Weight weekend days higher if remaining
-            remaining_weight = sum([1.5 if d in ['Saturday', 'Sunday'] else 1.0 for d, c in remaining_dows.items() for _ in range(c)])
-            predicted_remaining = round(daily_pace * remaining_weight * weather_multiplier)
+            raw_daily = [daily_pace * (1.5 if d['dow'] in ['Saturday', 'Sunday'] else 1.0) * weather_multiplier for d in remaining_days_list]
+            predicted_remaining = round(sum(raw_daily))
+            rounded_daily = [round(v) for v in raw_daily]
+            diff = predicted_remaining - sum(rounded_daily)
+            if diff != 0 and len(rounded_daily) > 0:
+                indices = sorted(range(len(raw_daily)), key=lambda i: raw_daily[i] - rounded_daily[i], reverse=(diff > 0))
+                for i in range(abs(diff)):
+                    idx = indices[i % len(indices)]
+                    rounded_daily[idx] += (1 if diff > 0 else -1)
+                    if rounded_daily[idx] < 0:
+                        rounded_daily[idx] = 0
+
+            for idx, d in enumerate(remaining_days_list):
+                d_str = d['date']
+                exp_v = rounded_daily[idx]
+                act_v = int(act_info.get('by_date', {}).get(d_str, 0))
+                daily_breakdown[d_str] = {
+                    'expected': exp_v,
+                    'actual': act_v,
+                    'type': 'expected',
+                    'is_today': d['is_today']
+                }
+                if d['is_today']:
+                    today_expected = exp_v
+
             baseline_for_display = f"New ({actuals_qty} so far)"
         else:
             # No past history and 0 sales so far: catalog item
             predicted_remaining = 0
             baseline_for_display = 0
+            for d in remaining_days_list:
+                d_str = d['date']
+                act_v = int(act_info.get('by_date', {}).get(d_str, 0))
+                daily_breakdown[d_str] = {
+                    'expected': 0,
+                    'actual': act_v,
+                    'type': 'expected',
+                    'is_today': d['is_today']
+                }
+
+        # Populate past days in daily_breakdown with actuals
+        for d in calendar_days:
+            if d['is_past']:
+                d_str = d['date']
+                act_v = int(act_info.get('by_date', {}).get(d_str, 0))
+                daily_breakdown[d_str] = {
+                    'expected': 0,
+                    'actual': act_v,
+                    'type': 'actual',
+                    'is_today': False
+                }
+
+        # Calculate transfer needed for today
+        bige_inv = item_stock['bige']
+        act_today = int(act_info.get('by_date', {}).get(today_str, 0))
+        today_remaining_expected = max(0, today_expected - act_today)
+        if today_remaining_expected > 0:
+            today_transfer_needed = max(0, today_remaining_expected - bige_inv)
+        elif today_expected > 0 and act_today == 0:
+            today_transfer_needed = max(0, today_expected - bige_inv)
+        else:
+            today_transfer_needed = 0
 
         # Stockout evaluation
         total_inv = item_stock['total']
-        bige_inv = item_stock['bige']
         car_inv = item_stock['car']
         stand_inv = item_stock['stand']
         wh_inv = item_stock['warehouse']
@@ -1844,6 +1949,10 @@ def prediction_data():
             'actuals': actuals_qty,
             'predicted_remainder': predicted_remaining,
             'required_total': actuals_qty + predicted_remaining,
+            'daily_breakdown': daily_breakdown,
+            'today_expected': today_expected,
+            'today_remaining_expected': today_remaining_expected,
+            'today_transfer_needed': today_transfer_needed,
             'inventory': {
                 'total': total_inv,
                 'bige': bige_inv,
@@ -1854,8 +1963,13 @@ def prediction_data():
             'status': status
         })
 
-    # Sort items: Top priority are items with highest required stock or stockout risk
-    predictions.sort(key=lambda x: (x['status'] == 'CRITICAL_STOCKOUT', x['predicted_remainder']), reverse=True)
+    # Sort items: Priority given to items needing transfer TODAY, followed by critical stockout and remaining volume
+    predictions.sort(key=lambda x: (
+        x['today_transfer_needed'] > 0,
+        x['status'] == 'CRITICAL_STOCKOUT',
+        x['today_transfer_needed'],
+        x['predicted_remainder']
+    ), reverse=True)
 
     # Calculate overall pace
     trend_multiplier = round(weather_multiplier * awareness_growth, 2)
@@ -1863,16 +1977,28 @@ def prediction_data():
         actual_vs_hist_ratio = (total_sales_2026_sample * (len(elapsed_dows) + len(remaining_dows))) / (total_sales_history_sample * (len(elapsed_dows) or 1))
         trend_multiplier = round(max(0.7, min(2.5, actual_vs_hist_ratio * weather_multiplier)), 2)
 
+    total_today_transfer_units = sum(p['today_transfer_needed'] for p in predictions)
+    total_today_transfer_items = sum(1 for p in predictions if p['today_transfer_needed'] > 0)
+    total_today_expected_units = sum(p['today_expected'] for p in predictions)
+
     return jsonify({
         'weather': {
             'avg_temp_f': avg_temp,
             'multiplier': weather_multiplier
         },
         'calendar': {
+            'today': today_str,
             'elapsed_days': sum(elapsed_dows.values()),
             'remaining_days': sum(remaining_dows.values()),
             'elapsed_dows': elapsed_dows,
-            'remaining_dows': remaining_dows
+            'remaining_dows': remaining_dows,
+            'days': calendar_days
+        },
+        'today_summary': {
+            'date': today_str,
+            'expected_units': total_today_expected_units,
+            'transfer_units': total_today_transfer_units,
+            'transfer_items': total_today_transfer_items
         },
         'factors': {
             'awareness_growth': awareness_growth,

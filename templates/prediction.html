@@ -150,6 +150,18 @@
             white-space: nowrap;
         }
 
+        .today-col-header {
+            background: rgba(13, 110, 253, 0.09) !important;
+            border-radius: 10px 10px 0 0;
+            border-left: 2px solid rgba(13, 110, 253, 0.25) !important;
+            border-right: 2px solid rgba(13, 110, 253, 0.25) !important;
+        }
+        .today-col-cell {
+            background: rgba(13, 110, 253, 0.04) !important;
+            border-left: 2px solid rgba(13, 110, 253, 0.18) !important;
+            border-right: 2px solid rgba(13, 110, 253, 0.18) !important;
+        }
+
         .filter-search-box {
             border-radius: 12px;
             padding: 10px 16px;
@@ -269,7 +281,7 @@
                     <h5 class="mb-3 fw-bold"><i class="bi bi-bar-chart-line-fill text-success me-2"></i>Event Insights &amp; Pacing</h5>
                     
                     <div class="row g-3 flex-grow-1" id="insights-container">
-                        <div class="col-md-3 col-6">
+                        <div class="col-lg col-md-4 col-6">
                             <div class="stat-box h-100 d-flex flex-column justify-content-center">
                                 <i class="bi bi-calendar-check fs-3 text-primary mb-1"></i>
                                 <span class="text-muted small fw-bold">EVENT PROGRESS</span>
@@ -277,7 +289,15 @@
                                 <span class="text-muted" style="font-size: 0.75rem;" id="stat-progress-sub">--</span>
                             </div>
                         </div>
-                        <div class="col-md-3 col-6">
+                        <div class="col-lg col-md-4 col-6">
+                            <div class="stat-box h-100 d-flex flex-column justify-content-center border-warning border-opacity-75 shadow-sm" style="background: rgba(255, 193, 7, 0.08); cursor: pointer;" onclick="filterTodayTransfers()" title="Click to filter items needing transfer today">
+                                <i class="bi bi-box-arrow-up-right fs-3 text-warning mb-1"></i>
+                                <span class="text-muted small fw-bold">TODAY'S RESTOCK</span>
+                                <h6 class="fw-bold mt-1 mb-0 text-dark" id="stat-today-transfer">-- Units</h6>
+                                <span class="text-warning-emphasis fw-semibold" style="font-size: 0.75rem;" id="stat-today-transfer-sub">-- items need transfer</span>
+                            </div>
+                        </div>
+                        <div class="col-lg col-md-4 col-6">
                             <div class="stat-box h-100 d-flex flex-column justify-content-center">
                                 <i class="bi bi-cloud-sun weather-icon"></i>
                                 <span class="text-muted small fw-bold">AVG FORECAST</span>
@@ -285,7 +305,7 @@
                                 <span class="text-muted" style="font-size: 0.75rem;" id="temp-effect">--</span>
                             </div>
                         </div>
-                        <div class="col-md-3 col-6">
+                        <div class="col-lg col-md-4 col-6">
                             <div class="stat-box h-100 d-flex flex-column justify-content-center">
                                 <i class="bi bi-speedometer2 fs-3 text-warning mb-1"></i>
                                 <span class="text-muted small fw-bold">SALES PACING</span>
@@ -293,7 +313,7 @@
                                 <span class="text-muted" style="font-size: 0.75rem;" id="orders-count">-- Orders</span>
                             </div>
                         </div>
-                        <div class="col-md-3 col-6">
+                        <div class="col-lg col-md-4 col-6">
                             <div class="stat-box h-100 d-flex flex-column justify-content-center">
                                 <i class="bi bi-exclamation-triangle fs-3 text-danger mb-1"></i>
                                 <span class="text-muted small fw-bold">STOCKOUT RISKS</span>
@@ -311,25 +331,39 @@
             <div class="col-12">
                 <div class="glass-card p-4">
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-                        <h5 class="fw-bold mb-0">Item Demand &amp; Stock Availability</h5>
-                        <div class="d-flex gap-2">
-                            <input type="text" class="form-control form-control-sm filter-search-box" id="table-search" placeholder="Search item..." onkeyup="filterTable()">
-                            <select class="form-select form-select-sm" id="status-filter" style="width: 170px;" onchange="filterTable()">
+                        <div class="d-flex align-items-center gap-2">
+                            <h5 class="fw-bold mb-0">Item Demand &amp; Stock Availability</h5>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="active-days-badge" style="font-size: 0.75rem;"></span>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                            <!-- Day Columns View Mode Toggle -->
+                            <div class="btn-group btn-group-sm shadow-sm" role="group" id="days-view-toggle">
+                                <button type="button" class="btn btn-primary active" id="btn-view-remaining" onclick="setDaysView('remaining')">
+                                    <i class="bi bi-calendar-event me-1"></i>Remaining Days
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="btn-view-all" onclick="setDaysView('all')">
+                                    <i class="bi bi-calendar3 me-1"></i>All Event Days
+                                </button>
+                            </div>
+
+                            <input type="text" class="form-control form-control-sm filter-search-box" id="table-search" placeholder="Search item..." onkeyup="filterTable()" style="max-width: 170px;">
+                            
+                            <select class="form-select form-select-sm" id="status-filter" style="width: 205px;" onchange="filterTable()">
                                 <option value="ALL">All Items</option>
-                                <option value="CRITICAL_STOCKOUT">Critical Stockout</option>
-                                <option value="TRANSFER_NEEDED">Needs Transfer</option>
-                                <option value="SAFE">Safe / Stocked</option>
+                                <option value="TRANSFER_TODAY">⚡ Needs Transfer Today</option>
+                                <option value="CRITICAL_STOCKOUT">🚨 Critical Stockout</option>
+                                <option value="TRANSFER_NEEDED">⚠️ Needs Event Transfer</option>
+                                <option value="SAFE">✅ Safe / Stocked</option>
                             </select>
                         </div>
                     </div>
 
                     <div class="table-responsive">
                         <table class="table table-custom table-borderless align-middle w-100" id="prediction-table">
-                            <thead>
+                            <thead id="prediction-table-header">
                                 <tr class="text-muted small text-uppercase">
                                     <th>Item Name</th>
                                     <th>Multi-Yr Baseline</th>
-                                    <th>Price &amp; Impact</th>
                                     <th>2026 Actuals</th>
                                     <th>Predicted Remainder</th>
                                     <th>Total Expected</th>
@@ -339,7 +373,7 @@
                             </thead>
                             <tbody id="prediction-table-body">
                                 <tr>
-                                    <td colspan="8" class="text-center py-5 text-muted">
+                                    <td colspan="7" class="text-center py-5 text-muted">
                                         <i class="bi bi-inbox fs-1 d-block mb-3"></i>
                                         Click "Run Forecast Model" to calculate predictions
                                     </td>
@@ -364,6 +398,42 @@
 
     <script>
         let allPredictions = [];
+        let currentCalendar = null;
+        let currentDaysView = 'remaining'; // 'remaining' or 'all'
+
+        function setDaysView(mode) {
+            currentDaysView = mode;
+            const btnRem = document.getElementById('btn-view-remaining');
+            const btnAll = document.getElementById('btn-view-all');
+            if (btnRem && btnAll) {
+                if (mode === 'remaining') {
+                    btnRem.className = 'btn btn-primary active';
+                    btnAll.className = 'btn btn-outline-secondary';
+                } else {
+                    btnRem.className = 'btn btn-outline-secondary';
+                    btnAll.className = 'btn btn-primary active';
+                }
+            }
+            renderHeader();
+            filterTable();
+        }
+
+        function filterTodayTransfers() {
+            const sel = document.getElementById('status-filter');
+            if (sel) {
+                sel.value = 'TRANSFER_TODAY';
+                filterTable();
+            }
+        }
+
+        function getVisibleDays() {
+            if (!currentCalendar || !currentCalendar.days) return [];
+            if (currentDaysView === 'remaining') {
+                const rem = currentCalendar.days.filter(d => d.is_remaining);
+                return rem.length > 0 ? rem : currentCalendar.days;
+            }
+            return currentCalendar.days;
+        }
 
         async function generatePrediction() {
             const startDate = document.getElementById('start_date').value;
@@ -397,7 +467,8 @@
 
                 const data = await response.json();
                 allPredictions = data.predictions || [];
-                
+                currentCalendar = data.calendar || null;
+
                 // Update Insights
                 const temp = data.weather ? data.weather.avg_temp_f.toFixed(1) : '--';
                 const weatherMult = data.weather ? data.weather.multiplier : 1.0;
@@ -412,12 +483,24 @@
                 document.getElementById('stat-progress').innerText = `${elapsed} / ${elapsed + remaining} Days`;
                 document.getElementById('stat-progress-sub').innerText = `${remaining} like days remaining`;
 
+                // Update Today's Restock summary
+                if (data.today_summary) {
+                    const tUnits = data.today_summary.transfer_units || 0;
+                    const tItems = data.today_summary.transfer_items || 0;
+                    const expUnits = data.today_summary.expected_units || 0;
+                    document.getElementById('stat-today-transfer').innerText = `${tUnits} Units`;
+                    document.getElementById('stat-today-transfer-sub').innerText = tUnits > 0
+                        ? `${tItems} items need restock (${expUnits} exp)`
+                        : `Booth covered for today (${expUnits} exp)`;
+                }
+
                 // Count critical stockouts
                 const criticalCount = allPredictions.filter(p => p.status === 'CRITICAL_STOCKOUT').length;
                 document.getElementById('stat-stockouts').innerText = `${criticalCount} Items`;
                 document.getElementById('stat-stockouts-sub').innerText = criticalCount > 0 ? 'Will run out across ALL locations' : 'Network stock sufficient';
 
-                renderTable(allPredictions);
+                renderHeader();
+                filterTable();
 
             } catch (err) {
                 console.error(err);
@@ -427,10 +510,68 @@
             }
         }
 
+        function renderHeader() {
+            const thead = document.getElementById('prediction-table-header');
+            if (!thead) return;
+
+            const visibleDays = getVisibleDays();
+
+            // Update active badge
+            const badgeEl = document.getElementById('active-days-badge');
+            if (badgeEl) {
+                badgeEl.innerText = `${visibleDays.length} Days Breakdown (${currentDaysView === 'remaining' ? 'Forecast' : 'Full Event'})`;
+            }
+
+            let daysHeadersHtml = '';
+            for (const d of visibleDays) {
+                if (d.is_today) {
+                    daysHeadersHtml += `
+                        <th class="text-center today-col-header" style="min-width: 110px;">
+                            <span class="badge bg-primary text-white text-uppercase px-2 py-0.5" style="font-size:0.62rem; letter-spacing:0.5px;">Today</span>
+                            <div class="fw-bold text-primary mt-1" style="font-size:0.85rem;">${d.formatted}</div>
+                            <div class="text-muted" style="font-size:0.68rem; font-weight:normal;">Expected / Transfer</div>
+                        </th>
+                    `;
+                } else if (d.is_remaining) {
+                    daysHeadersHtml += `
+                        <th class="text-center" style="min-width: 80px;">
+                            <div class="fw-bold text-dark" style="font-size:0.85rem;">${d.formatted}</div>
+                            <div class="text-muted" style="font-size:0.68rem; font-weight:normal;">Expected</div>
+                        </th>
+                    `;
+                } else {
+                    daysHeadersHtml += `
+                        <th class="text-center text-muted" style="min-width: 80px; background: rgba(0,0,0,0.02);">
+                            <div class="fw-bold text-secondary" style="font-size:0.85rem;">${d.formatted}</div>
+                            <div class="text-muted" style="font-size:0.68rem; font-weight:normal;">Actual Sold</div>
+                        </th>
+                    `;
+                }
+            }
+
+            thead.innerHTML = `
+                <tr class="text-muted small text-uppercase">
+                    <th>Item Name</th>
+                    <th>Multi-Yr Baseline</th>
+                    <th>2026 Actuals</th>
+                    ${daysHeadersHtml}
+                    <th>Predicted Remainder</th>
+                    <th>Total Expected</th>
+                    <th>All Available Stock</th>
+                    <th>Runout Status</th>
+                </tr>
+            `;
+        }
+
         function renderTable(items) {
             const tbody = document.getElementById('prediction-table-body');
+            if (!tbody) return;
+
+            const visibleDays = getVisibleDays();
+            const colSpan = 7 + visibleDays.length;
+
             if (!items || items.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4">No matching items found.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center py-5 text-muted"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No matching items found.</td></tr>`;
                 return;
             }
 
@@ -452,7 +593,56 @@
                 }
 
                 const inv = item.inventory || { total: 0, bige: 0, car: 0, stand: 0, warehouse: 0 };
-                const invBreakdown = `All Locations Breakdown:&#10;• Warehouse: ${inv.warehouse}&#10;• Car: ${inv.car}&#10;• Stand: ${inv.stand}&#10;• Big E: ${inv.bige}`;
+                const invBreakdown = `All Locations Breakdown:\n• Warehouse: ${inv.warehouse}\n• Car: ${inv.car}\n• Stand: ${inv.stand}\n• Big E: ${inv.bige}`;
+
+                // Dynamic daily breakdown cells
+                let dailyCellsHtml = '';
+                for (const d of visibleDays) {
+                    const dayData = (item.daily_breakdown && item.daily_breakdown[d.date]) ? item.daily_breakdown[d.date] : null;
+                    if (d.is_today) {
+                        const exp = dayData ? dayData.expected : (item.today_expected || 0);
+                        const transferNeeded = item.today_transfer_needed || 0;
+                        let todayPill = '';
+                        if (transferNeeded > 0) {
+                            todayPill = `
+                                <span class="badge bg-warning text-dark border border-warning shadow-sm mt-1" style="font-size: 0.7rem; white-space: nowrap;" title="Booth has ${inv.bige}. Transfer at least ${transferNeeded} from Car/House for today!">
+                                    <i class="bi bi-box-arrow-up-right me-0.5"></i>Transfer ${transferNeeded}
+                                </span>
+                            `;
+                        } else if (exp > 0) {
+                            todayPill = `
+                                <span class="badge bg-success-subtle text-success border border-success-subtle mt-1" style="font-size: 0.68rem; white-space: nowrap;" title="Booth has ${inv.bige}, which is sufficient for today's expected sales (${exp})">
+                                    <i class="bi bi-check me-0.5"></i>Booth OK (${inv.bige})
+                                </span>
+                            `;
+                        } else {
+                            todayPill = `<span class="text-muted" style="font-size: 0.72rem;">-</span>`;
+                        }
+
+                        dailyCellsHtml += `
+                            <td class="text-center today-col-cell">
+                                <div class="d-flex flex-column align-items-center justify-content-center">
+                                    <span class="fw-bold text-dark fs-6" title="${exp} expected sales today">${exp}</span>
+                                    ${todayPill}
+                                </div>
+                            </td>
+                        `;
+                    } else if (d.is_remaining) {
+                        const exp = dayData ? dayData.expected : 0;
+                        dailyCellsHtml += `
+                            <td class="text-center">
+                                <span class="badge bg-light text-dark border px-2 py-1 fs-6">${exp}</span>
+                            </td>
+                        `;
+                    } else {
+                        const act = dayData ? dayData.actual : 0;
+                        dailyCellsHtml += `
+                            <td class="text-center" style="background: rgba(0,0,0,0.015);">
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary px-2 py-1" title="Actual sales on ${d.formatted}">${act}</span>
+                            </td>
+                        `;
+                    }
+                }
 
                 html += `
                     <tr>
@@ -462,14 +652,17 @@
                                     <i class="bi bi-box text-primary"></i>
                                 </div>
                                 <div>
-                                    <div class="fw-bold">${item.name}</div>
-                                    ${item.is_new_item ? '<span class="badge bg-info text-dark" style="font-size:0.7rem;">New Item (Paced from 2026)</span>' : ''}
+                                    <div class="fw-bold text-dark">${item.name}</div>
+                                    <div class="d-flex align-items-center gap-1 mt-0.5">
+                                        <span class="text-muted small">${priceHtml}</span>
+                                        ${item.is_new_item ? '<span class="badge bg-info text-dark" style="font-size:0.65rem;">New Item</span>' : ''}
+                                    </div>
                                 </div>
                             </div>
                         </td>
                         <td><span class="badge bg-light text-dark border px-2 py-1">${item.baseline_multi_year}</span></td>
-                        <td><span class="small">${priceHtml}</span></td>
                         <td><span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-2 py-1">${item.actuals}</span></td>
+                        ${dailyCellsHtml}
                         <td><span class="badge bg-warning bg-opacity-10 text-warning border border-warning px-2 py-1 fs-6">${item.predicted_remainder}</span></td>
                         <td><span class="fw-bold text-dark">${item.required_total}</span></td>
                         <td>
@@ -477,7 +670,7 @@
                                 <span class="stock-pill ${inv.total < item.predicted_remainder ? 'text-danger fw-bold border-danger bg-danger-subtle' : 'text-dark fw-bold'}" title="${invBreakdown}" style="cursor: help;">
                                     ${inv.total} Units
                                 </span>
-                                <span class="text-muted" style="font-size: 0.72rem;">Booth: ${inv.bige} | House: ${inv.warehouse} | Car: ${inv.car}</span>
+                                <span class="text-muted" style="font-size: 0.72rem;">Booth: <strong class="${inv.bige < (item.today_expected || 0) ? 'text-danger' : 'text-dark'}">${inv.bige}</strong> | House: ${inv.warehouse} | Car: ${inv.car}</span>
                             </div>
                         </td>
                         <td>${statusBadge}</td>
@@ -493,7 +686,16 @@
 
             const filtered = allPredictions.filter(item => {
                 const matchQuery = !query || item.name.toLowerCase().includes(query);
-                const matchStatus = statusFilter === 'ALL' || item.status === statusFilter;
+                let matchStatus = true;
+                if (statusFilter === 'TRANSFER_TODAY') {
+                    matchStatus = (item.today_transfer_needed > 0);
+                } else if (statusFilter === 'CRITICAL_STOCKOUT') {
+                    matchStatus = (item.status === 'CRITICAL_STOCKOUT');
+                } else if (statusFilter === 'TRANSFER_NEEDED') {
+                    matchStatus = (item.status === 'TRANSFER_NEEDED');
+                } else if (statusFilter === 'SAFE') {
+                    matchStatus = (item.status === 'SAFE');
+                }
                 return matchQuery && matchStatus;
             });
 
