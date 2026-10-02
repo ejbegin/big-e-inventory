@@ -168,6 +168,52 @@
             border: 1px solid rgba(0,0,0,0.1);
             background: rgba(255,255,255,0.8);
         }
+
+        .badge-trend-surging {
+            background: linear-gradient(135deg, rgba(255, 71, 87, 0.15) 0%, rgba(255, 107, 129, 0.22) 100%);
+            color: #d63031;
+            border: 1px solid rgba(255, 71, 87, 0.35);
+            font-weight: 700;
+            font-size: 0.68rem;
+            padding: 2px 7px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(255, 71, 87, 0.1);
+        }
+        .badge-trend-up {
+            background: rgba(40, 167, 69, 0.12);
+            color: #198754;
+            border: 1px solid rgba(40, 167, 69, 0.3);
+            font-weight: 600;
+            font-size: 0.68rem;
+            padding: 2px 7px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+        }
+        .badge-trend-new {
+            background: rgba(13, 110, 253, 0.1);
+            color: #0d6efd;
+            border: 1px solid rgba(13, 110, 253, 0.25);
+            font-weight: 600;
+            font-size: 0.68rem;
+            padding: 2px 7px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+        }
+        .badge-trend-soft {
+            background: rgba(108, 117, 125, 0.1);
+            color: #6c757d;
+            border: 1px solid rgba(108, 117, 125, 0.25);
+            font-weight: 500;
+            font-size: 0.68rem;
+            padding: 2px 7px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+        }
     </style>
 </head>
 <body>
@@ -334,6 +380,7 @@
                         <div class="d-flex align-items-center gap-2">
                             <h5 class="fw-bold mb-0">Item Demand &amp; Stock Availability</h5>
                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="active-days-badge" style="font-size: 0.75rem;"></span>
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle shadow-sm" id="surging-header-badge" style="font-size: 0.75rem; cursor: pointer; display: none;" onclick="filterSurgingItems()" title="Click to filter surging items"></span>
                         </div>
                         <div class="d-flex flex-wrap gap-2 align-items-center">
                             <!-- Day Columns View Mode Toggle -->
@@ -348,8 +395,9 @@
 
                             <input type="text" class="form-control form-control-sm filter-search-box" id="table-search" placeholder="Search item..." onkeyup="filterTable()" style="max-width: 170px;">
                             
-                            <select class="form-select form-select-sm" id="status-filter" style="width: 205px;" onchange="filterTable()">
+                            <select class="form-select form-select-sm" id="status-filter" style="width: 215px;" onchange="filterTable()">
                                 <option value="ALL">All Items</option>
+                                <option value="SURGING">🔥 Surging &amp; Trending</option>
                                 <option value="TRANSFER_TODAY">⚡ Needs Transfer Today</option>
                                 <option value="CRITICAL_STOCKOUT">🚨 Critical Stockout</option>
                                 <option value="TRANSFER_NEEDED">⚠️ Needs Event Transfer</option>
@@ -426,6 +474,14 @@
             }
         }
 
+        function filterSurgingItems() {
+            const sel = document.getElementById('status-filter');
+            if (sel) {
+                sel.value = 'SURGING';
+                filterTable();
+            }
+        }
+
         function getVisibleDays() {
             if (!currentCalendar || !currentCalendar.days) return [];
             if (currentDaysView === 'remaining') {
@@ -476,7 +532,30 @@
                 document.getElementById('temp-effect').innerText = weatherMult >= 1.0 ? `+${Math.round((weatherMult-1)*100)}% Weather boost` : `-${Math.round((1-weatherMult)*100)}% Weather impact`;
 
                 document.getElementById('trend-mult').innerText = `${data.factors.trend_multiplier.toFixed(2)}x`;
-                document.getElementById('orders-count').innerText = `${data.factors.orders_so_far} orders in 2026`;
+                
+                const surgingCount = data.factors ? (data.factors.surging_count || 0) : 0;
+                const trendingUpCount = data.factors ? (data.factors.trending_up_count || 0) : 0;
+                const ordersCountEl = document.getElementById('orders-count');
+                if (ordersCountEl) {
+                    if (surgingCount > 0) {
+                        ordersCountEl.innerHTML = `<span class="text-danger fw-bold"><i class="bi bi-fire me-0.5"></i>${surgingCount} Surging</span> &bull; ${data.factors.orders_so_far} orders`;
+                    } else if (trendingUpCount > 0) {
+                        ordersCountEl.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-graph-up-arrow me-0.5"></i>${trendingUpCount} Trending</span> &bull; ${data.factors.orders_so_far} orders`;
+                    } else {
+                        ordersCountEl.innerText = `${data.factors.orders_so_far} orders in 2026`;
+                    }
+                }
+
+                // Update header badge for surging items
+                const surgingBadgeEl = document.getElementById('surging-header-badge');
+                if (surgingBadgeEl) {
+                    if (surgingCount > 0) {
+                        surgingBadgeEl.innerHTML = `<i class="bi bi-fire me-1"></i>${surgingCount} Surging`;
+                        surgingBadgeEl.style.display = 'inline-flex';
+                    } else {
+                        surgingBadgeEl.style.display = 'none';
+                    }
+                }
 
                 const elapsed = data.calendar ? data.calendar.elapsed_days : 0;
                 const remaining = data.calendar ? data.calendar.remaining_days : 0;
@@ -644,6 +723,44 @@
                     }
                 }
 
+                let trendBadgeHtml = '';
+                const unadjBaseline = item.baseline_remainder_unadjusted !== undefined ? item.baseline_remainder_unadjusted : item.predicted_remainder;
+                const deltaUnits = item.predicted_remainder - unadjBaseline;
+                const deltaSign = deltaUnits >= 0 ? `+${deltaUnits}` : `${deltaUnits}`;
+                const momentumPace = item.momentum_multiplier || 1.0;
+
+                if (item.trend_status === 'SURGING') {
+                    trendBadgeHtml = `
+                        <span class="badge-trend-surging" title="🔥 Surging ${item.pace_pct}! Baseline: ${unadjBaseline} &rarr; Forecast boosted to ${item.predicted_remainder} (${deltaSign} units) based on ${momentumPace}x live event pace.">
+                            <i class="bi bi-fire me-1 text-danger"></i>Surging ${item.pace_pct}
+                        </span>
+                    `;
+                } else if (item.trend_status === 'TRENDING_UP') {
+                    trendBadgeHtml = `
+                        <span class="badge-trend-up" title="📈 Trending Up ${item.pace_pct}! Baseline: ${unadjBaseline} &rarr; Forecast boosted to ${item.predicted_remainder} (${deltaSign} units) based on ${momentumPace}x velocity.">
+                            <i class="bi bi-graph-up-arrow me-1 text-success"></i>Up ${item.pace_pct}
+                        </span>
+                    `;
+                } else if (item.trend_status === 'NEW_HOT') {
+                    trendBadgeHtml = `
+                        <span class="badge-trend-surging" title="🔥 Hot new item! Selling at ${item.pace_pct}. Projected remaining demand: ${item.predicted_remainder} units.">
+                            <i class="bi bi-fire me-1 text-danger"></i>Hot New (${item.pace_pct})
+                        </span>
+                    `;
+                } else if (item.trend_status === 'NEW') {
+                    trendBadgeHtml = `
+                        <span class="badge-trend-new" title="✨ New item with no previous event history. Selling pace: ${item.pace_pct}.">
+                            <i class="bi bi-stars me-1 text-primary"></i>New (${item.pace_pct})
+                        </span>
+                    `;
+                } else if (item.trend_status === 'SOFT') {
+                    trendBadgeHtml = `
+                        <span class="badge-trend-soft" title="❄️ Slower initial pace (${item.pace_pct}). Downward forecast dampened by 50% to protect inventory for closing weekend.">
+                            <i class="bi bi-shield-check me-1 text-muted"></i>Protected (${item.pace_pct})
+                        </span>
+                    `;
+                }
+
                 html += `
                     <tr>
                         <td>
@@ -653,9 +770,9 @@
                                 </div>
                                 <div>
                                     <div class="fw-bold text-dark">${item.name}</div>
-                                    <div class="d-flex align-items-center gap-1 mt-0.5">
+                                    <div class="d-flex align-items-center flex-wrap gap-1 mt-0.5">
                                         <span class="text-muted small">${priceHtml}</span>
-                                        ${item.is_new_item ? '<span class="badge bg-info text-dark" style="font-size:0.65rem;">New Item</span>' : ''}
+                                        ${trendBadgeHtml}
                                     </div>
                                 </div>
                             </div>
@@ -663,7 +780,18 @@
                         <td><span class="badge bg-light text-dark border px-2 py-1">${item.baseline_multi_year}</span></td>
                         <td><span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-2 py-1">${item.actuals}</span></td>
                         ${dailyCellsHtml}
-                        <td><span class="badge bg-warning bg-opacity-10 text-warning border border-warning px-2 py-1 fs-6">${item.predicted_remainder}</span></td>
+                        <td>
+                            <div class="d-flex flex-column align-items-start">
+                                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning px-2 py-1 fs-6" title="Unadjusted baseline: ${unadjBaseline} units${deltaUnits !== 0 ? ` | Live Momentum: ${deltaSign} units (${momentumPace}x)` : ''}">
+                                    ${item.predicted_remainder}
+                                </span>
+                                ${deltaUnits > 0 && (item.trend_status === 'SURGING' || item.trend_status === 'TRENDING_UP') ? `
+                                    <span class="text-danger fw-bold mt-1" style="font-size: 0.68rem;" title="${deltaSign} units added by live sales momentum">
+                                        <i class="bi bi-arrow-up-short"></i>${deltaSign} surge boost
+                                    </span>
+                                ` : ''}
+                            </div>
+                        </td>
                         <td><span class="fw-bold text-dark">${item.required_total}</span></td>
                         <td>
                             <div class="d-flex flex-column align-items-start">
@@ -687,7 +815,9 @@
             const filtered = allPredictions.filter(item => {
                 const matchQuery = !query || item.name.toLowerCase().includes(query);
                 let matchStatus = true;
-                if (statusFilter === 'TRANSFER_TODAY') {
+                if (statusFilter === 'SURGING') {
+                    matchStatus = (item.trend_status === 'SURGING' || item.trend_status === 'TRENDING_UP' || item.trend_status === 'NEW_HOT');
+                } else if (statusFilter === 'TRANSFER_TODAY') {
                     matchStatus = (item.today_transfer_needed > 0);
                 } else if (statusFilter === 'CRITICAL_STOCKOUT') {
                     matchStatus = (item.status === 'CRITICAL_STOCKOUT');
