@@ -1534,10 +1534,8 @@ def prediction():
 
 import urllib.request
 import json
-
-import urllib.request
-import json
 import re
+import math
 
 HISTORICAL_SALES_CACHE_FILE = os.path.join(DATA_DIR, 'historical_sales_cache.json')
 SALES_2026_CACHE_FILE = os.path.join(DATA_DIR, 'sales_2026_cache.json')
@@ -1591,13 +1589,15 @@ def fetch_2026_sales(start_date_str, force_refresh=False):
     if cached_data and cached_data.get('cached_at'):
         s_dt = cached_data['cached_at']
         is_incremental = True
+        sales_2026 = cached_data.get('sales', {})
+        orders_2026_count = cached_data.get('orders_count', 0)
+        actual_days_with_sales = set(cached_data.get('days_with_sales', []))
     else:
         s_dt = f"{start_date_str}T00:00:00Z"
         is_incremental = False
-
-    sales_2026 = cached_data.get('sales', {}) if is_incremental else {}
-    orders_2026_count = cached_data.get('orders_count', 0) if is_incremental else 0
-    actual_days_with_sales = set(cached_data.get('days_with_sales', [])) if is_incremental else set()
+        sales_2026 = {}
+        orders_2026_count = 0
+        actual_days_with_sales = set()
 
     try:
         all_locs = client.locations.list().dict().get('locations', [])
@@ -1682,7 +1682,15 @@ def prediction_data():
     location = data.get('location', 'West Springfield, MA')
     awareness_growth = float(data.get('awareness_growth', 1.15)) # e.g. 15% YoY growth
     price_sensitivity = float(data.get('price_sensitivity', -0.5)) # standard price elasticity
+    surge_profile = str(data.get('surge_profile', 'balanced')).lower()
     force_refresh = bool(data.get('force_refresh', False))
+
+    SURGE_PROFILES = {
+        'conservative': {'cap': 1.25, 'damp': 0.25, 'name': 'Conservative (+25% cap)'},
+        'balanced': {'cap': 1.40, 'damp': 0.35, 'name': 'Balanced (+40% cap)'},
+        'aggressive': {'cap': 1.75, 'damp': 0.50, 'name': 'Aggressive (+75% cap)'}
+    }
+    profile_cfg = SURGE_PROFILES.get(surge_profile, SURGE_PROFILES['balanced'])
 
     # 1. Fetch weather via Open-Meteo
     avg_temp = 70.0
@@ -1865,6 +1873,13 @@ def prediction_data():
             hist_total = int(m24[1].get('qty', 0))
             hist_price = m24[1].get('price') or curr_price
 
+        # Baseline floor for missing or unrecorded weekday historical days (prevents artificial pace spikes from zero-recorded days)
+        if hist_total > 0:
+            weekday_floor = (hist_total / 14.0) * 0.4
+            for dow_k in ['Monday', 'Tuesday', 'Wednesday', 'Thursday']:
+                if hist_days.get(dow_k, 0) < weekday_floor:
+                    hist_days[dow_k] = weekday_floor
+
         # Actuals so far in 2026
         act_info = sales_2026.get(norm_name, {'qty': 0, 'by_dow': {}, 'by_date': {}})
         actuals_qty = int(act_info['qty'])
@@ -1947,29 +1962,28 @@ def prediction_data():
                 # 65% recent momentum, 35% cumulative pace
                 raw_item_pace = (0.65 * recent_pace) + (0.35 * cum_pace)
 
-                # Stockout-Protection Bias:
-                # If outperforming (pace >= 1.0): accelerate unhindered (clamped up to 3.5x for stability)
-                # If underperforming (pace < 1.0): dampen downward revisions by 50%
+                # Damped Momentum Curve with Profile-based Surge Cap:
+                # Diminishing returns curve prevents runaway compound multipliers onto peak weekend days
                 if raw_item_pace >= 1.0:
-                    effective_pace = min(3.5, raw_item_pace)
+                    damped_pace = 1.0 + (math.log(raw_item_pace) * profile_cfg['damp'])
+                    effective_pace = min(profile_cfg['cap'], damped_pace)
                 else:
-                    effective_pace = max(0.5, 1.0 - (0.5 * (1.0 - raw_item_pace)))
+                    effective_pace = max(0.65, 1.0 - (0.45 * (1.0 - raw_item_pace)))
 
                 # Progressive Blending weight as event progresses
-                actuals_weight = min(0.85, 0.25 + (0.12 * n_eval))
+                actuals_weight = min(0.80, 0.25 + (0.12 * n_eval))
                 momentum_multiplier = (actuals_weight * effective_pace) + (1.0 - actuals_weight)
                 adjusted_growth = item_growth_factor * momentum_multiplier
 
-                # Trend classification
-                pace_diff = raw_item_pace - 1.0
-                pace_pct_val = round(pace_diff * 100)
-                pace_pct_str = f"+{pace_pct_val}%" if pace_pct_val >= 0 else f"{pace_pct_val}%"
+                # Trend classification based on effective momentum
+                effective_boost_pct = round((momentum_multiplier - 1.0) * 100)
+                pace_pct_str = f"+{effective_boost_pct}%" if effective_boost_pct >= 0 else f"{effective_boost_pct}%"
 
-                if raw_item_pace >= 1.35 and act_eval >= 3:
+                if momentum_multiplier >= 1.20 and act_eval >= 3:
                     trend_status = "SURGING"
-                elif raw_item_pace >= 1.12 and act_eval >= 2:
+                elif momentum_multiplier >= 1.08 and act_eval >= 2:
                     trend_status = "TRENDING_UP"
-                elif raw_item_pace <= 0.75:
+                elif momentum_multiplier <= 0.88:
                     trend_status = "SOFT"
                 else:
                     trend_status = "STEADY"
@@ -2199,6 +2213,8 @@ def prediction_data():
         },
         'factors': {
             'awareness_growth': awareness_growth,
+            'surge_profile': surge_profile,
+            'surge_profile_name': profile_cfg['name'],
             'trend_multiplier': trend_multiplier,
             'orders_so_far': orders_2026_count,
             'surging_count': surging_count,

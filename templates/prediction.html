@@ -214,6 +214,84 @@
             display: inline-flex;
             align-items: center;
         }
+
+        /* Sticky First Column for Item Name */
+        .table-sticky-col {
+            position: relative;
+        }
+        .table-sticky-col th:first-child,
+        .table-sticky-col td:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 4;
+            background: rgba(255, 255, 255, 0.97) !important;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            min-width: 165px;
+            max-width: 220px;
+            box-shadow: 3px 0 8px rgba(0, 0, 0, 0.06);
+        }
+        .table-sticky-col thead th:first-child {
+            z-index: 6;
+            background: #f1f4f8 !important;
+        }
+        .table-custom tbody tr:hover td:first-child {
+            background: rgba(245, 248, 252, 0.99) !important;
+        }
+        .item-title-cell {
+            max-width: 200px;
+            line-height: 1.25;
+        }
+        .item-title-text {
+            font-size: 0.88rem;
+            font-weight: 700;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        /* Mobile & iPhone Landscape Optimizations */
+        @media (max-width: 991px), (max-height: 520px) {
+            .table-custom td {
+                padding: 7px 8px !important;
+                font-size: 0.84rem;
+            }
+            .table-custom th {
+                padding: 7px 8px !important;
+                font-size: 0.72rem;
+            }
+            .stat-box {
+                padding: 10px 8px !important;
+            }
+            .stat-box h6 {
+                font-size: 0.95rem;
+            }
+            .glass-card {
+                padding: 14px !important;
+                border-radius: 14px;
+            }
+            .today-col-cell, .today-col-header {
+                min-width: 85px !important;
+            }
+        }
+
+        @media (max-height: 520px) {
+            .navbar {
+                padding-top: 3px !important;
+                padding-bottom: 3px !important;
+                margin-bottom: 8px !important;
+            }
+            .header-title {
+                font-size: 1.2rem !important;
+            }
+            .header-subtitle {
+                display: none !important;
+            }
+            .container-fluid {
+                padding-left: 10px !important;
+                padding-right: 10px !important;
+                padding-bottom: 20px !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -259,112 +337,142 @@
         </div>
     </nav>
 
-    <div class="container-fluid px-lg-5 pb-5">
-        <div class="row mb-4">
-            <div class="col-12 text-center">
-                <h1 class="display-6 header-title mb-2">Smart Event Forecast & Stockout Analyzer</h1>
-                <p class="text-muted">Dynamic multi-year baseline comparing matching days of the week, weather forecasts, price elasticity, awareness growth, and live network inventory.</p>
+    <div class="container-fluid px-2 px-sm-3 px-lg-5 pb-5">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 header-container">
+            <div>
+                <h1 class="display-6 header-title mb-0 fs-3">Smart Event Forecast &amp; Stockout Analyzer</h1>
+                <p class="text-muted small mb-0 header-subtitle">Dynamic multi-year baseline comparing matching days of the week, weather, price elasticity, and live network inventory.</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary shadow-sm" id="btn-toggle-panels" onclick="togglePanels()" title="Toggle parameters and insights summary to maximize table view">
+                    <i class="bi bi-chevron-up me-1"></i><span id="btn-toggle-panels-text">Hide Panels</span>
+                </button>
             </div>
         </div>
 
-        <div class="row g-4 mb-4">
-            <!-- Controls Card -->
-            <div class="col-lg-4">
-                <div class="glass-card p-4 h-100">
-                    <h5 class="mb-3 fw-bold"><i class="bi bi-sliders text-primary me-2"></i>Event Parameters</h5>
-                    
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <label class="form-label text-muted fw-bold small mb-1">START DATE</label>
-                            <input type="date" class="form-control form-control-sm" id="start_date" value="2026-09-28">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label text-muted fw-bold small mb-1">END DATE</label>
-                            <input type="date" class="form-control form-control-sm" id="end_date" value="2026-10-04">
-                        </div>
-                    </div>
+        <!-- Compact Stats Bar (Visible when panels are collapsed) -->
+        <div id="compact-stats-bar" class="d-none mb-3 p-2 px-3 rounded-3 bg-white border shadow-sm d-flex flex-wrap align-items-center justify-content-between gap-2" style="font-size: 0.82rem;">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <span><i class="bi bi-calendar-check text-primary me-1"></i><strong id="mini-progress">--</strong></span>
+                <span class="text-warning-emphasis fw-semibold"><i class="bi bi-box-arrow-up-right me-1"></i><strong id="mini-restock">--</strong></span>
+                <span><i class="bi bi-cloud-sun text-warning me-1"></i><span id="mini-weather">--</span></span>
+                <span><i class="bi bi-speedometer2 text-info me-1"></i><span id="mini-pacing">--</span></span>
+                <span class="text-danger fw-semibold"><i class="bi bi-exclamation-triangle me-1"></i><strong id="mini-stockouts">--</strong></span>
+            </div>
+            <button class="btn btn-xs btn-link text-decoration-none p-0 text-primary fw-semibold" onclick="togglePanels(true)">Show Parameters &rarr;</button>
+        </div>
 
-                    <div class="mb-3">
-                        <label class="form-label text-muted fw-bold small mb-1">LOCATION (WEATHER)</label>
-                        <input type="text" class="form-control form-control-sm" id="location" value="West Springfield, MA">
-                    </div>
-
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <label class="form-label text-muted fw-bold small mb-1" title="Brand awareness and event growth factor">
-                                AWARENESS GROWTH
-                            </label>
-                            <div class="input-group input-group-sm">
-                                <input type="number" class="form-control" id="growth_pct" value="15" step="5" min="-50" max="200">
-                                <span class="input-group-text">% YoY</span>
+        <div id="top-panels-container">
+            <div class="row g-3 mb-4">
+                <!-- Controls Card -->
+                <div class="col-lg-4">
+                    <div class="glass-card p-3 p-sm-4 h-100">
+                        <h5 class="mb-3 fw-bold"><i class="bi bi-sliders text-primary me-2"></i>Event Parameters</h5>
+                        
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label text-muted fw-bold small mb-1">START DATE</label>
+                                <input type="date" class="form-control form-control-sm" id="start_date" value="2026-09-28">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted fw-bold small mb-1">END DATE</label>
+                                <input type="date" class="form-control form-control-sm" id="end_date" value="2026-10-04">
                             </div>
                         </div>
-                        <div class="col-6">
-                            <label class="form-label text-muted fw-bold small mb-1" title="Price increase elasticity sensitivity">
-                                PRICE SENSITIVITY
+
+                        <div class="mb-2">
+                            <label class="form-label text-muted fw-bold small mb-1">LOCATION (WEATHER)</label>
+                            <input type="text" class="form-control form-control-sm" id="location" value="West Springfield, MA">
+                        </div>
+
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label text-muted fw-bold small mb-1" title="Brand awareness and event growth factor">
+                                    AWARENESS GROWTH
+                                </label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" class="form-control" id="growth_pct" value="15" step="5" min="-50" max="200">
+                                    <span class="input-group-text">% YoY</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted fw-bold small mb-1" title="Price increase elasticity sensitivity">
+                                    PRICE SENSITIVITY
+                                </label>
+                                <select class="form-select form-select-sm" id="price_elasticity">
+                                    <option value="-0.2">Low (-0.2)</option>
+                                    <option value="-0.5" selected>Standard (-0.5)</option>
+                                    <option value="-0.8">High (-0.8)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label text-muted fw-bold small mb-1" title="Controls momentum multiplier sensitivity and caps peak surge projections">
+                                SURGE MULTIPLIER PROFILE
                             </label>
-                            <select class="form-select form-select-sm" id="price_elasticity">
-                                <option value="-0.2">Low (-0.2)</option>
-                                <option value="-0.5" selected>Standard (-0.5)</option>
-                                <option value="-0.8">High (-0.8)</option>
+                            <select class="form-select form-select-sm" id="surge_profile" onchange="generatePrediction()">
+                                <option value="conservative">Conservative (+25% max boost, heavy damping)</option>
+                                <option value="balanced" selected>Balanced (+40% max boost, recommended)</option>
+                                <option value="aggressive">Aggressive (+75% max boost, high surge)</option>
                             </select>
                         </div>
-                    </div>
 
-                    <button class="btn btn-magic w-100 py-2" onclick="generatePrediction(true)" id="predict-btn">
-                        <i class="bi bi-stars me-2"></i>Run Forecast Model
-                    </button>
-                    
-                    <div class="mt-3 p-2 rounded small bg-white border" style="font-size: 0.8rem; color: #555;">
-                        <i class="bi bi-info-circle text-primary me-1"></i> <strong>Day-of-Week Matching:</strong> Mondays project from Mondays, Saturdays from Saturdays. Compares multi-year weighted actuals (2024 &amp; 2025).
+                        <button class="btn btn-magic w-100 py-2" onclick="generatePrediction(true)" id="predict-btn">
+                            <i class="bi bi-stars me-2"></i>Run Forecast Model
+                        </button>
+                        
+                        <div class="mt-3 p-2 rounded small bg-white border" style="font-size: 0.8rem; color: #555;">
+                            <i class="bi bi-info-circle text-primary me-1"></i> <strong>Day-of-Week Matching:</strong> Mondays project from Mondays, Saturdays from Saturdays. Compares multi-year weighted actuals (2024 &amp; 2025).
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Overview Dashboard -->
-            <div class="col-lg-8">
-                <div class="glass-card p-4 h-100 d-flex flex-column">
-                    <h5 class="mb-3 fw-bold"><i class="bi bi-bar-chart-line-fill text-success me-2"></i>Event Insights &amp; Pacing</h5>
-                    
-                    <div class="row g-3 flex-grow-1" id="insights-container">
-                        <div class="col-lg col-md-4 col-6">
-                            <div class="stat-box h-100 d-flex flex-column justify-content-center">
-                                <i class="bi bi-calendar-check fs-3 text-primary mb-1"></i>
-                                <span class="text-muted small fw-bold">EVENT PROGRESS</span>
-                                <h6 class="fw-bold mt-1 mb-0" id="stat-progress">-- Days</h6>
-                                <span class="text-muted" style="font-size: 0.75rem;" id="stat-progress-sub">--</span>
+                <!-- Overview Dashboard -->
+                <div class="col-lg-8">
+                    <div class="glass-card p-3 p-sm-4 h-100 d-flex flex-column">
+                        <h5 class="mb-3 fw-bold"><i class="bi bi-bar-chart-line-fill text-success me-2"></i>Event Insights &amp; Pacing</h5>
+                        
+                        <div class="row g-2 g-sm-3 flex-grow-1" id="insights-container">
+                            <div class="col-lg col-md-4 col-6">
+                                <div class="stat-box h-100 d-flex flex-column justify-content-center">
+                                    <i class="bi bi-calendar-check fs-3 text-primary mb-1"></i>
+                                    <span class="text-muted small fw-bold">EVENT PROGRESS</span>
+                                    <h6 class="fw-bold mt-1 mb-0" id="stat-progress">-- Days</h6>
+                                    <span class="text-muted" style="font-size: 0.75rem;" id="stat-progress-sub">--</span>
+                                </div>
                             </div>
-                        </div>
-                        <div class="col-lg col-md-4 col-6">
-                            <div class="stat-box h-100 d-flex flex-column justify-content-center border-warning border-opacity-75 shadow-sm" style="background: rgba(255, 193, 7, 0.08); cursor: pointer;" onclick="filterTodayTransfers()" title="Click to filter items needing transfer today">
-                                <i class="bi bi-box-arrow-up-right fs-3 text-warning mb-1"></i>
-                                <span class="text-muted small fw-bold">TODAY'S RESTOCK</span>
-                                <h6 class="fw-bold mt-1 mb-0 text-dark" id="stat-today-transfer">-- Units</h6>
-                                <span class="text-warning-emphasis fw-semibold" style="font-size: 0.75rem;" id="stat-today-transfer-sub">-- items need transfer</span>
+                            <div class="col-lg col-md-4 col-6">
+                                <div class="stat-box h-100 d-flex flex-column justify-content-center border-warning border-opacity-75 shadow-sm" style="background: rgba(255, 193, 7, 0.08); cursor: pointer;" onclick="filterTodayTransfers()" title="Click to filter items needing transfer today">
+                                    <i class="bi bi-box-arrow-up-right fs-3 text-warning mb-1"></i>
+                                    <span class="text-muted small fw-bold">TODAY'S RESTOCK</span>
+                                    <h6 class="fw-bold mt-1 mb-0 text-dark" id="stat-today-transfer">-- Units</h6>
+                                    <span class="text-warning-emphasis fw-semibold" style="font-size: 0.75rem;" id="stat-today-transfer-sub">-- items need transfer</span>
+                                </div>
                             </div>
-                        </div>
-                        <div class="col-lg col-md-4 col-6">
-                            <div class="stat-box h-100 d-flex flex-column justify-content-center">
-                                <i class="bi bi-cloud-sun weather-icon"></i>
-                                <span class="text-muted small fw-bold">AVG FORECAST</span>
-                                <h6 class="fw-bold mt-1 mb-0" id="temp-avg">-- °F</h6>
-                                <span class="text-muted" style="font-size: 0.75rem;" id="temp-effect">--</span>
+                            <div class="col-lg col-md-4 col-6">
+                                <div class="stat-box h-100 d-flex flex-column justify-content-center">
+                                    <i class="bi bi-cloud-sun weather-icon"></i>
+                                    <span class="text-muted small fw-bold">AVG FORECAST</span>
+                                    <h6 class="fw-bold mt-1 mb-0" id="temp-avg">-- °F</h6>
+                                    <span class="text-muted" style="font-size: 0.75rem;" id="temp-effect">--</span>
+                                </div>
                             </div>
-                        </div>
-                        <div class="col-lg col-md-4 col-6">
-                            <div class="stat-box h-100 d-flex flex-column justify-content-center">
-                                <i class="bi bi-speedometer2 fs-3 text-warning mb-1"></i>
-                                <span class="text-muted small fw-bold">SALES PACING</span>
-                                <h6 class="fw-bold mt-1 mb-0" id="trend-mult">-- x</h6>
-                                <span class="text-muted" style="font-size: 0.75rem;" id="orders-count">-- Orders</span>
+                            <div class="col-lg col-md-4 col-6">
+                                <div class="stat-box h-100 d-flex flex-column justify-content-center">
+                                    <i class="bi bi-speedometer2 fs-3 text-warning mb-1"></i>
+                                    <span class="text-muted small fw-bold">SALES PACING</span>
+                                    <h6 class="fw-bold mt-1 mb-0" id="trend-mult">-- x</h6>
+                                    <span class="text-muted" style="font-size: 0.75rem;" id="orders-count">-- Orders</span>
+                                </div>
                             </div>
-                        </div>
-                        <div class="col-lg col-md-4 col-6">
-                            <div class="stat-box h-100 d-flex flex-column justify-content-center">
-                                <i class="bi bi-exclamation-triangle fs-3 text-danger mb-1"></i>
-                                <span class="text-muted small fw-bold">STOCKOUT RISKS</span>
-                                <h6 class="fw-bold mt-1 mb-0 text-danger" id="stat-stockouts">-- Items</h6>
-                                <span class="text-muted" style="font-size: 0.75rem;" id="stat-stockouts-sub">Need restock</span>
+                            <div class="col-lg col-md-4 col-6">
+                                <div class="stat-box h-100 d-flex flex-column justify-content-center">
+                                    <i class="bi bi-exclamation-triangle fs-3 text-danger mb-1"></i>
+                                    <span class="text-muted small fw-bold">STOCKOUT RISKS</span>
+                                    <h6 class="fw-bold mt-1 mb-0 text-danger" id="stat-stockouts">-- Items</h6>
+                                    <span class="text-muted" style="font-size: 0.75rem;" id="stat-stockouts-sub">Need restock</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -375,7 +483,7 @@
         <!-- Prediction Table Card -->
         <div class="row">
             <div class="col-12">
-                <div class="glass-card p-4">
+                <div class="glass-card p-3 p-sm-4">
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
                         <div class="d-flex align-items-center gap-2">
                             <h5 class="fw-bold mb-0">Item Demand &amp; Stock Availability</h5>
@@ -386,28 +494,28 @@
                             <!-- Day Columns View Mode Toggle -->
                             <div class="btn-group btn-group-sm shadow-sm" role="group" id="days-view-toggle">
                                 <button type="button" class="btn btn-primary active" id="btn-view-remaining" onclick="setDaysView('remaining')">
-                                    <i class="bi bi-calendar-event me-1"></i>Remaining Days
+                                    <i class="bi bi-calendar-event me-1"></i>Remaining
                                 </button>
                                 <button type="button" class="btn btn-outline-secondary" id="btn-view-all" onclick="setDaysView('all')">
-                                    <i class="bi bi-calendar3 me-1"></i>All Event Days
+                                    <i class="bi bi-calendar3 me-1"></i>All Days
                                 </button>
                             </div>
 
-                            <input type="text" class="form-control form-control-sm filter-search-box" id="table-search" placeholder="Search item..." onkeyup="filterTable()" style="max-width: 170px;">
+                            <input type="text" class="form-control form-control-sm filter-search-box" id="table-search" placeholder="Search item..." onkeyup="filterTable()" style="max-width: 150px;">
                             
-                            <select class="form-select form-select-sm" id="status-filter" style="width: 215px;" onchange="filterTable()">
+                            <select class="form-select form-select-sm" id="status-filter" style="width: 185px;" onchange="filterTable()">
                                 <option value="ALL">All Items</option>
-                                <option value="SURGING">🔥 Surging &amp; Trending</option>
-                                <option value="TRANSFER_TODAY">⚡ Needs Transfer Today</option>
+                                <option value="SURGING">🔥 Surging</option>
+                                <option value="TRANSFER_TODAY">⚡ Transfer Today</option>
                                 <option value="CRITICAL_STOCKOUT">🚨 Critical Stockout</option>
-                                <option value="TRANSFER_NEEDED">⚠️ Needs Event Transfer</option>
-                                <option value="SAFE">✅ Safe / Stocked</option>
+                                <option value="TRANSFER_NEEDED">⚠️ Need Transfer</option>
+                                <option value="SAFE">✅ Safe</option>
                             </select>
                         </div>
                     </div>
 
                     <div class="table-responsive">
-                        <table class="table table-custom table-borderless align-middle w-100" id="prediction-table">
+                        <table class="table table-custom table-borderless align-middle w-100 table-sticky-col" id="prediction-table">
                             <thead id="prediction-table-header">
                                 <tr class="text-muted small text-uppercase">
                                     <th>Item Name</th>
@@ -491,6 +599,29 @@
             return currentCalendar.days;
         }
 
+        function togglePanels(forceShow) {
+            const panels = document.getElementById('top-panels-container');
+            const compactBar = document.getElementById('compact-stats-bar');
+            const btnText = document.getElementById('btn-toggle-panels-text');
+            const btn = document.getElementById('btn-toggle-panels');
+            if (!panels) return;
+
+            const isCurrentlyHidden = panels.classList.contains('d-none');
+            const willShow = forceShow !== undefined ? forceShow : isCurrentlyHidden;
+
+            if (willShow) {
+                panels.classList.remove('d-none');
+                if (compactBar) compactBar.classList.add('d-none');
+                if (btnText) btnText.innerText = 'Hide Panels';
+                if (btn) btn.innerHTML = '<i class="bi bi-chevron-up me-1"></i><span id="btn-toggle-panels-text">Hide Panels</span>';
+            } else {
+                panels.classList.add('d-none');
+                if (compactBar) compactBar.classList.remove('d-none');
+                if (btnText) btnText.innerText = 'Show Panels';
+                if (btn) btn.innerHTML = '<i class="bi bi-sliders me-1"></i><span id="btn-toggle-panels-text">Show Panels</span>';
+            }
+        }
+
         async function generatePrediction(forceRefresh = false) {
             const startDate = document.getElementById('start_date').value;
             const endDate = document.getElementById('end_date').value;
@@ -498,6 +629,7 @@
             const growthPct = parseFloat(document.getElementById('growth_pct').value) || 0;
             const awarenessGrowth = 1.0 + (growthPct / 100.0);
             const priceSensitivity = parseFloat(document.getElementById('price_elasticity').value) || -0.5;
+            const surgeProfile = (document.getElementById('surge_profile') ? document.getElementById('surge_profile').value : 'balanced');
 
             if (!startDate || !endDate || !location) {
                 alert('Please fill in all parameters.');
@@ -516,6 +648,7 @@
                         location: location,
                         awareness_growth: awarenessGrowth,
                         price_sensitivity: priceSensitivity,
+                        surge_profile: surgeProfile,
                         force_refresh: forceRefresh
                     })
                 });
@@ -549,7 +682,8 @@
                 const trendMultEl = document.getElementById('trend-mult');
                 if (trendMultEl) {
                     const tMult = (data.factors && data.factors.trend_multiplier != null) ? data.factors.trend_multiplier.toFixed(2) : '1.00';
-                    trendMultEl.innerText = `${tMult}x`;
+                    const pName = (data.factors && data.factors.surge_profile_name) ? data.factors.surge_profile_name : 'Balanced';
+                    trendMultEl.innerHTML = `${tMult}x <span class="badge bg-secondary-subtle text-secondary small fw-normal ms-1" style="font-size:0.65rem;">${pName}</span>`;
                 }
                 
                 const surgingCount = data.factors ? (data.factors.surging_count || 0) : 0;
@@ -585,10 +719,13 @@
                 if (statProgSubEl) statProgSubEl.innerText = `${remaining} like days remaining`;
 
                 // Update Today's Restock summary
+                let tUnits = 0;
+                let tItems = 0;
+                let expUnits = 0;
                 if (data.today_summary) {
-                    const tUnits = data.today_summary.transfer_units || 0;
-                    const tItems = data.today_summary.transfer_items || 0;
-                    const expUnits = data.today_summary.expected_units || 0;
+                    tUnits = data.today_summary.transfer_units || 0;
+                    tItems = data.today_summary.transfer_items || 0;
+                    expUnits = data.today_summary.expected_units || 0;
                     const statTodayEl = document.getElementById('stat-today-transfer');
                     if (statTodayEl) statTodayEl.innerText = `${tUnits} Units`;
                     const statTodaySubEl = document.getElementById('stat-today-transfer-sub');
@@ -605,6 +742,18 @@
                 if (statStockoutsEl) statStockoutsEl.innerText = `${criticalCount} Items`;
                 const statStockoutsSubEl = document.getElementById('stat-stockouts-sub');
                 if (statStockoutsSubEl) statStockoutsSubEl.innerText = criticalCount > 0 ? 'Will run out across ALL locations' : 'Network stock sufficient';
+
+                // Update Compact Mini-Bar
+                const miniProg = document.getElementById('mini-progress');
+                if (miniProg) miniProg.innerText = `${elapsed}/${elapsed + remaining} Days`;
+                const miniRestock = document.getElementById('mini-restock');
+                if (miniRestock) miniRestock.innerText = tUnits > 0 ? `${tUnits} Restock Units (${tItems} items)` : 'Restock Covered';
+                const miniWeather = document.getElementById('mini-weather');
+                if (miniWeather) miniWeather.innerText = `${temp}°F`;
+                const miniPacing = document.getElementById('mini-pacing');
+                if (miniPacing && data.factors) miniPacing.innerText = `${(data.factors.trend_multiplier || 1).toFixed(2)}x Pace`;
+                const miniStockouts = document.getElementById('mini-stockouts');
+                if (miniStockouts) miniStockouts.innerText = `${criticalCount} Stockouts`;
 
                 renderHeader();
                 filterTable();
@@ -807,16 +956,11 @@
                 html += `
                     <tr>
                         <td>
-                            <div class="d-flex align-items-center">
-                                <div class="bg-primary bg-opacity-10 rounded-circle p-2 me-2">
-                                    <i class="bi bi-box text-primary"></i>
-                                </div>
-                                <div>
-                                    <div class="fw-bold text-dark">${item.name}</div>
-                                    <div class="d-flex align-items-center flex-wrap gap-1 mt-0.5">
-                                        <span class="text-muted small">${priceHtml}</span>
-                                        ${trendBadgeHtml}
-                                    </div>
+                            <div class="item-title-cell">
+                                <div class="item-title-text text-dark" title="${item.name}">${item.name}</div>
+                                <div class="d-flex align-items-center flex-wrap gap-1 mt-1">
+                                    <span class="text-muted small">${priceHtml}</span>
+                                    ${trendBadgeHtml}
                                 </div>
                             </div>
                         </td>
@@ -841,10 +985,10 @@
                                 <span class="stock-pill ${inv.total < item.predicted_remainder ? 'text-danger fw-bold border-danger bg-danger-subtle' : 'text-dark fw-bold'}" title="${invBreakdown}" style="cursor: help;">
                                     ${inv.total} Units
                                 </span>
-                                <span class="text-muted" style="font-size: 0.72rem;">Booth: <strong class="${inv.bige < (item.today_expected || 0) ? 'text-danger' : 'text-dark'}">${inv.bige}</strong> | House: ${inv.warehouse} | Car: ${inv.car}</span>
+                                <span class="text-muted" style="font-size: 0.70rem; white-space: nowrap;">Booth: <strong class="${inv.bige < (item.today_expected || 0) ? 'text-danger' : 'text-dark'}">${inv.bige}</strong> | House: ${inv.warehouse} | Car: ${inv.car}</span>
                             </div>
                         </td>
-                        <td>${statusBadge}</td>
+                        <td style="white-space: nowrap;">${statusBadge}</td>
                     </tr>
                 `;
             }
@@ -877,6 +1021,10 @@
 
         // Auto-run on page load
         window.addEventListener('DOMContentLoaded', () => {
+            // If on iPhone landscape (short height and landscape aspect ratio), auto-collapse top panels so table is immediately visible
+            if (window.innerHeight <= 520 && window.innerWidth > window.innerHeight) {
+                togglePanels(false);
+            }
             generatePrediction();
         });
     </script>
