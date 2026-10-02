@@ -1556,7 +1556,17 @@ def fetch_2026_sales(start_date_str, force_refresh=False):
     now_iso = now_dt.isoformat()
     cache_path = SALES_2026_CACHE_FILE
 
-    # 1. Check existing cache
+    # 1. Ensure cache file is migrated from repo if not present in DATA_DIR
+    if not os.path.exists(cache_path):
+        repo_cache = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'sales_2026_cache.json')
+        if os.path.exists(repo_cache):
+            cache_path = repo_cache
+            try:
+                shutil.copy2(repo_cache, SALES_2026_CACHE_FILE)
+                cache_path = SALES_2026_CACHE_FILE
+            except Exception:
+                pass
+
     cached_data = None
     if os.path.exists(cache_path):
         try:
@@ -1565,29 +1575,40 @@ def fetch_2026_sales(start_date_str, force_refresh=False):
         except Exception as e:
             print(f"Error reading 2026 sales cache: {e}")
 
-    # Use cache if fresh (< 300 seconds) and not forced
+    # Use cache if fresh (< 180 seconds) and not forced
     if not force_refresh and cached_data:
         cached_time_str = cached_data.get('cached_at')
         if cached_time_str:
             try:
                 cached_time = datetime.datetime.fromisoformat(cached_time_str)
                 age_seconds = (now_dt - cached_time).total_seconds()
-                if age_seconds < 300: # 5 minutes TTL
+                if age_seconds < 180: # 3 minutes TTL
                     return cached_data.get('sales', {}), cached_data.get('orders_count', 0), set(cached_data.get('days_with_sales', []))
             except Exception:
                 pass
 
-    # 2. Query Square API
-    sales_2026 = {}
-    orders_2026_count = 0
-    actual_days_with_sales = set()
-    s_dt = f"{start_date_str}T00:00:00Z"
+    # 2. Determine fetch starting point (Incremental if cache exists)
+    if cached_data and cached_data.get('cached_at'):
+        s_dt = cached_data['cached_at']
+        is_incremental = True
+    else:
+        s_dt = f"{start_date_str}T00:00:00Z"
+        is_incremental = False
+
+    sales_2026 = cached_data.get('sales', {}) if is_incremental else {}
+    orders_2026_count = cached_data.get('orders_count', 0) if is_incremental else 0
+    actual_days_with_sales = set(cached_data.get('days_with_sales', [])) if is_incremental else set()
 
     try:
         all_locs = client.locations.list().dict().get('locations', [])
         loc_ids = [l['id'] for l in all_locs]
+        if not loc_ids:
+            if cached_data:
+                return cached_data.get('sales', {}), cached_data.get('orders_count', 0), set(cached_data.get('days_with_sales', []))
+            return sales_2026, orders_2026_count, actual_days_with_sales
 
         cursor = None
+        new_orders_count = 0
         while True:
             kwargs = {
                 'location_ids': loc_ids,
@@ -1604,7 +1625,7 @@ def fetch_2026_sales(start_date_str, force_refresh=False):
             if cursor: kwargs['cursor'] = cursor
             r = client.orders.search(**kwargs).dict()
             orders = r.get('orders', [])
-            orders_2026_count += len(orders)
+            new_orders_count += len(orders)
             for o in orders:
                 created_raw = o.get('created_at', '')
                 try:
@@ -1629,13 +1650,16 @@ def fetch_2026_sales(start_date_str, force_refresh=False):
             cursor = r.get('cursor')
             if not cursor: break
 
-        # Persist cache
+        orders_2026_count = orders_2026_count + new_orders_count if is_incremental else new_orders_count
+
+        # Persist updated cache
         try:
-            with open(cache_path, 'w') as f:
+            target_write = SALES_2026_CACHE_FILE
+            with open(target_write, 'w') as f:
                 json.dump({
                     'cached_at': now_iso,
                     'orders_count': orders_2026_count,
-                    'days_with_sales': list(actual_days_with_sales),
+                    'days_with_sales': sorted(list(actual_days_with_sales)),
                     'sales': sales_2026
                 }, f)
         except Exception as e:
@@ -1666,7 +1690,7 @@ def prediction_data():
     try:
         geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(location)}&count=1"
         req = urllib.request.Request(geo_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=4) as response:
             geo_resp = json.loads(response.read().decode())
         
         if geo_resp.get('results'):
@@ -1674,7 +1698,7 @@ def prediction_data():
             lon = geo_resp['results'][0]['longitude']
             w_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&temperature_unit=fahrenheit&timezone=America/New_York"
             w_req = urllib.request.Request(w_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(w_req) as response:
+            with urllib.request.urlopen(w_req, timeout=4) as response:
                 w_resp = json.loads(response.read().decode())
             
             if w_resp.get('daily'):
