@@ -311,7 +311,7 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-magic w-100 py-2" onclick="generatePrediction()" id="predict-btn">
+                    <button class="btn btn-magic w-100 py-2" onclick="generatePrediction(true)" id="predict-btn">
                         <i class="bi bi-stars me-2"></i>Run Forecast Model
                     </button>
                     
@@ -491,7 +491,7 @@
             return currentCalendar.days;
         }
 
-        async function generatePrediction() {
+        async function generatePrediction(forceRefresh = false) {
             const startDate = document.getElementById('start_date').value;
             const endDate = document.getElementById('end_date').value;
             const location = document.getElementById('location').value;
@@ -515,34 +515,54 @@
                         end_date: endDate,
                         location: location,
                         awareness_growth: awarenessGrowth,
-                        price_sensitivity: priceSensitivity
+                        price_sensitivity: priceSensitivity,
+                        force_refresh: forceRefresh
                     })
                 });
 
-                if (!response.ok) throw new Error('Failed to fetch prediction data');
+                if (!response.ok) {
+                    let errMsg = `Server returned HTTP ${response.status}`;
+                    try {
+                        const errJson = await response.json();
+                        if (errJson && errJson.error) errMsg = errJson.error;
+                    } catch (_) {
+                        try {
+                            const errText = await response.text();
+                            if (errText) errMsg = errText.slice(0, 180);
+                        } catch (__) {}
+                    }
+                    throw new Error(errMsg);
+                }
 
                 const data = await response.json();
                 allPredictions = data.predictions || [];
                 currentCalendar = data.calendar || null;
 
-                // Update Insights
-                const temp = data.weather ? data.weather.avg_temp_f.toFixed(1) : '--';
-                const weatherMult = data.weather ? data.weather.multiplier : 1.0;
-                document.getElementById('temp-avg').innerText = `${temp} °F`;
-                document.getElementById('temp-effect').innerText = weatherMult >= 1.0 ? `+${Math.round((weatherMult-1)*100)}% Weather boost` : `-${Math.round((1-weatherMult)*100)}% Weather impact`;
+                // Update Insights safely
+                const temp = data.weather && data.weather.avg_temp_f != null ? data.weather.avg_temp_f.toFixed(1) : '--';
+                const weatherMult = data.weather && data.weather.multiplier != null ? data.weather.multiplier : 1.0;
+                const tempAvgEl = document.getElementById('temp-avg');
+                if (tempAvgEl) tempAvgEl.innerText = `${temp} °F`;
+                const tempEffectEl = document.getElementById('temp-effect');
+                if (tempEffectEl) tempEffectEl.innerText = weatherMult >= 1.0 ? `+${Math.round((weatherMult-1)*100)}% Weather boost` : `-${Math.round((1-weatherMult)*100)}% Weather impact`;
 
-                document.getElementById('trend-mult').innerText = `${data.factors.trend_multiplier.toFixed(2)}x`;
+                const trendMultEl = document.getElementById('trend-mult');
+                if (trendMultEl) {
+                    const tMult = (data.factors && data.factors.trend_multiplier != null) ? data.factors.trend_multiplier.toFixed(2) : '1.00';
+                    trendMultEl.innerText = `${tMult}x`;
+                }
                 
                 const surgingCount = data.factors ? (data.factors.surging_count || 0) : 0;
                 const trendingUpCount = data.factors ? (data.factors.trending_up_count || 0) : 0;
+                const ordersCount = data.factors ? (data.factors.orders_so_far || 0) : 0;
                 const ordersCountEl = document.getElementById('orders-count');
                 if (ordersCountEl) {
                     if (surgingCount > 0) {
-                        ordersCountEl.innerHTML = `<span class="text-danger fw-bold"><i class="bi bi-fire me-0.5"></i>${surgingCount} Surging</span> &bull; ${data.factors.orders_so_far} orders`;
+                        ordersCountEl.innerHTML = `<span class="text-danger fw-bold"><i class="bi bi-fire me-0.5"></i>${surgingCount} Surging</span> &bull; ${ordersCount} orders`;
                     } else if (trendingUpCount > 0) {
-                        ordersCountEl.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-graph-up-arrow me-0.5"></i>${trendingUpCount} Trending</span> &bull; ${data.factors.orders_so_far} orders`;
+                        ordersCountEl.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-graph-up-arrow me-0.5"></i>${trendingUpCount} Trending</span> &bull; ${ordersCount} orders`;
                     } else {
-                        ordersCountEl.innerText = `${data.factors.orders_so_far} orders in 2026`;
+                        ordersCountEl.innerText = `${ordersCount} orders in 2026`;
                     }
                 }
 
@@ -559,31 +579,54 @@
 
                 const elapsed = data.calendar ? data.calendar.elapsed_days : 0;
                 const remaining = data.calendar ? data.calendar.remaining_days : 0;
-                document.getElementById('stat-progress').innerText = `${elapsed} / ${elapsed + remaining} Days`;
-                document.getElementById('stat-progress-sub').innerText = `${remaining} like days remaining`;
+                const statProgEl = document.getElementById('stat-progress');
+                if (statProgEl) statProgEl.innerText = `${elapsed} / ${elapsed + remaining} Days`;
+                const statProgSubEl = document.getElementById('stat-progress-sub');
+                if (statProgSubEl) statProgSubEl.innerText = `${remaining} like days remaining`;
 
                 // Update Today's Restock summary
                 if (data.today_summary) {
                     const tUnits = data.today_summary.transfer_units || 0;
                     const tItems = data.today_summary.transfer_items || 0;
                     const expUnits = data.today_summary.expected_units || 0;
-                    document.getElementById('stat-today-transfer').innerText = `${tUnits} Units`;
-                    document.getElementById('stat-today-transfer-sub').innerText = tUnits > 0
-                        ? `${tItems} items need restock (${expUnits} exp)`
-                        : `Booth covered for today (${expUnits} exp)`;
+                    const statTodayEl = document.getElementById('stat-today-transfer');
+                    if (statTodayEl) statTodayEl.innerText = `${tUnits} Units`;
+                    const statTodaySubEl = document.getElementById('stat-today-transfer-sub');
+                    if (statTodaySubEl) {
+                        statTodaySubEl.innerText = tUnits > 0
+                            ? `${tItems} items need restock (${expUnits} exp)`
+                            : `Booth covered for today (${expUnits} exp)`;
+                    }
                 }
 
                 // Count critical stockouts
                 const criticalCount = allPredictions.filter(p => p.status === 'CRITICAL_STOCKOUT').length;
-                document.getElementById('stat-stockouts').innerText = `${criticalCount} Items`;
-                document.getElementById('stat-stockouts-sub').innerText = criticalCount > 0 ? 'Will run out across ALL locations' : 'Network stock sufficient';
+                const statStockoutsEl = document.getElementById('stat-stockouts');
+                if (statStockoutsEl) statStockoutsEl.innerText = `${criticalCount} Items`;
+                const statStockoutsSubEl = document.getElementById('stat-stockouts-sub');
+                if (statStockoutsSubEl) statStockoutsSubEl.innerText = criticalCount > 0 ? 'Will run out across ALL locations' : 'Network stock sufficient';
 
                 renderHeader();
                 filterTable();
 
             } catch (err) {
-                console.error(err);
-                alert('An error occurred while generating the prediction.');
+                console.error('Forecast generation error:', err);
+                const tbody = document.getElementById('prediction-table-body');
+                if (tbody) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="8" class="text-center py-5 text-danger">
+                                <i class="bi bi-exclamation-triangle fs-1 d-block mb-2 text-danger"></i>
+                                <div class="fw-bold fs-6 mb-1">Failed to generate forecast</div>
+                                <div class="text-muted small mb-3">${err.message || 'Server timeout or connection issue.'}</div>
+                                <button class="btn btn-sm btn-primary" onclick="generatePrediction(true)">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Try Again
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }
+                alert(`Error generating prediction: ${err.message || 'Please check connection and try again.'}`);
             } finally {
                 document.getElementById('loading-overlay').classList.add('d-none');
             }
@@ -665,10 +708,10 @@
                     statusBadge = `<span class="badge-status-success"><i class="bi bi-check-circle-fill"></i> Sufficient</span>`;
                 }
 
-                let priceHtml = `$${item.curr_price.toFixed(2)}`;
+                let priceHtml = `$${(Number(item.curr_price) || 0).toFixed(2)}`;
                 if (item.hist_price && item.curr_price > item.hist_price) {
                     const pct = Math.round(((item.curr_price - item.hist_price) / item.hist_price) * 100);
-                    priceHtml += ` <span class="badge bg-light text-muted border" title="Increased from $${item.hist_price.toFixed(2)}">+${pct}%</span>`;
+                    priceHtml += ` <span class="badge bg-light text-muted border" title="Increased from $${(Number(item.hist_price) || 0).toFixed(2)}">+${pct}%</span>`;
                 }
 
                 const inv = item.inventory || { total: 0, bige: 0, car: 0, stand: 0, warehouse: 0 };

@@ -1540,6 +1540,7 @@ import json
 import re
 
 HISTORICAL_SALES_CACHE_FILE = os.path.join(DATA_DIR, 'historical_sales_cache.json')
+SALES_2026_CACHE_FILE = os.path.join(DATA_DIR, 'sales_2026_cache.json')
 
 def normalize_item_name(name):
     n = name.lower()
@@ -1550,6 +1551,105 @@ def normalize_item_name(name):
     n = re.sub(r'[^a-z0-9]', ' ', n)
     return ' '.join(n.split())
 
+def fetch_2026_sales(start_date_str, force_refresh=False):
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    now_iso = now_dt.isoformat()
+    cache_path = SALES_2026_CACHE_FILE
+
+    # 1. Check existing cache
+    cached_data = None
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'r') as f:
+                cached_data = json.load(f)
+        except Exception as e:
+            print(f"Error reading 2026 sales cache: {e}")
+
+    # Use cache if fresh (< 300 seconds) and not forced
+    if not force_refresh and cached_data:
+        cached_time_str = cached_data.get('cached_at')
+        if cached_time_str:
+            try:
+                cached_time = datetime.datetime.fromisoformat(cached_time_str)
+                age_seconds = (now_dt - cached_time).total_seconds()
+                if age_seconds < 300: # 5 minutes TTL
+                    return cached_data.get('sales', {}), cached_data.get('orders_count', 0), set(cached_data.get('days_with_sales', []))
+            except Exception:
+                pass
+
+    # 2. Query Square API
+    sales_2026 = {}
+    orders_2026_count = 0
+    actual_days_with_sales = set()
+    s_dt = f"{start_date_str}T00:00:00Z"
+
+    try:
+        all_locs = client.locations.list().dict().get('locations', [])
+        loc_ids = [l['id'] for l in all_locs]
+
+        cursor = None
+        while True:
+            kwargs = {
+                'location_ids': loc_ids,
+                'query': {
+                    'filter': {
+                        'date_time_filter': {
+                            'created_at': {'start_at': s_dt, 'end_at': now_iso}
+                        },
+                        'state_filter': {'states': ['COMPLETED']}
+                    }
+                },
+                'limit': 500
+            }
+            if cursor: kwargs['cursor'] = cursor
+            r = client.orders.search(**kwargs).dict()
+            orders = r.get('orders', [])
+            orders_2026_count += len(orders)
+            for o in orders:
+                created_raw = o.get('created_at', '')
+                try:
+                    order_dt = datetime.datetime.fromisoformat(created_raw.replace('Z', '+00:00')).astimezone()
+                    d = order_dt.strftime('%Y-%m-%d')
+                    dow = order_dt.strftime('%A')
+                except Exception:
+                    d = created_raw[:10]
+                    dow = datetime.datetime.strptime(d, '%Y-%m-%d').strftime('%A')
+                actual_days_with_sales.add(d)
+                for li in o.get('line_items', []):
+                    nm = li.get('name', 'Unknown')
+                    n_key = normalize_item_name(nm)
+                    qty = float(li.get('quantity', 0))
+                    if n_key not in sales_2026:
+                        sales_2026[n_key] = {'qty': 0, 'by_dow': {}, 'by_date': {}}
+                    sales_2026[n_key]['qty'] += qty
+                    sales_2026[n_key]['by_dow'][dow] = sales_2026[n_key]['by_dow'].get(dow, 0) + qty
+                    if 'by_date' not in sales_2026[n_key]:
+                        sales_2026[n_key]['by_date'] = {}
+                    sales_2026[n_key]['by_date'][d] = sales_2026[n_key]['by_date'].get(d, 0) + qty
+            cursor = r.get('cursor')
+            if not cursor: break
+
+        # Persist cache
+        try:
+            with open(cache_path, 'w') as f:
+                json.dump({
+                    'cached_at': now_iso,
+                    'orders_count': orders_2026_count,
+                    'days_with_sales': list(actual_days_with_sales),
+                    'sales': sales_2026
+                }, f)
+        except Exception as e:
+            print(f"Error saving 2026 sales cache: {e}")
+
+        return sales_2026, orders_2026_count, actual_days_with_sales
+
+    except Exception as e:
+        print(f"2026 sales fetch error: {e}")
+        if cached_data:
+            print("Falling back to previous 2026 sales cache...")
+            return cached_data.get('sales', {}), cached_data.get('orders_count', 0), set(cached_data.get('days_with_sales', []))
+        return sales_2026, orders_2026_count, actual_days_with_sales
+
 @app.route('/api/prediction_data', methods=['POST'])
 def prediction_data():
     data = request.json or {}
@@ -1558,6 +1658,7 @@ def prediction_data():
     location = data.get('location', 'West Springfield, MA')
     awareness_growth = float(data.get('awareness_growth', 1.15)) # e.g. 15% YoY growth
     price_sensitivity = float(data.get('price_sensitivity', -0.5)) # standard price elasticity
+    force_refresh = bool(data.get('force_refresh', False))
 
     # 1. Fetch weather via Open-Meteo
     avg_temp = 70.0
@@ -1615,9 +1716,18 @@ def prediction_data():
 
     # 3. Load historical cache (2024 & 2025 actuals)
     historical_cache = {}
-    if os.path.exists(HISTORICAL_SALES_CACHE_FILE):
+    cache_path = HISTORICAL_SALES_CACHE_FILE
+    if not os.path.exists(cache_path):
+        repo_cache = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'historical_sales_cache.json')
+        if os.path.exists(repo_cache):
+            cache_path = repo_cache
+            try:
+                shutil.copy2(repo_cache, HISTORICAL_SALES_CACHE_FILE)
+            except Exception:
+                pass
+    if os.path.exists(cache_path):
         try:
-            with open(HISTORICAL_SALES_CACHE_FILE, 'r') as f:
+            with open(cache_path, 'r') as f:
                 historical_cache = json.load(f)
         except Exception as e:
             print(f"Error loading historical cache: {e}")
@@ -1625,62 +1735,8 @@ def prediction_data():
     h25_items = {normalize_item_name(k): (k, v) for k, v in historical_cache.get('2025', {}).get('items', {}).items()}
     h24_items = {normalize_item_name(k): (k, v) for k, v in historical_cache.get('2024', {}).get('items', {}).items()}
 
-    # 4. Fetch 2026 actual sales so far
-    # Search orders from event start date up to now
-    sales_2026 = {} # {norm_name: {'qty': int, 'by_dow': {}}}
-    orders_2026_count = 0
-    actual_days_with_sales = set()
-    try:
-        s_dt = f"{start_date_str}T00:00:00Z"
-        now_dt = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        
-        # Get active location IDs
-        all_locs = client.locations.list().dict().get('locations', [])
-        loc_ids = [l['id'] for l in all_locs]
-        
-        cursor = None
-        while True:
-            kwargs = {
-                'location_ids': loc_ids,
-                'query': {
-                    'filter': {
-                        'date_time_filter': {
-                            'created_at': {'start_at': s_dt, 'end_at': now_dt}
-                        },
-                        'state_filter': {'states': ['COMPLETED']}
-                    }
-                },
-                'limit': 500
-            }
-            if cursor: kwargs['cursor'] = cursor
-            r = client.orders.search(**kwargs).dict()
-            orders = r.get('orders', [])
-            orders_2026_count += len(orders)
-            for o in orders:
-                created_raw = o.get('created_at', '')
-                try:
-                    order_dt = datetime.datetime.fromisoformat(created_raw.replace('Z', '+00:00')).astimezone()
-                    d = order_dt.strftime('%Y-%m-%d')
-                    dow = order_dt.strftime('%A')
-                except Exception:
-                    d = created_raw[:10]
-                    dow = datetime.datetime.strptime(d, '%Y-%m-%d').strftime('%A')
-                actual_days_with_sales.add(d)
-                for li in o.get('line_items', []):
-                    nm = li.get('name', 'Unknown')
-                    n_key = normalize_item_name(nm)
-                    qty = float(li.get('quantity', 0))
-                    if n_key not in sales_2026:
-                        sales_2026[n_key] = {'qty': 0, 'by_dow': {}, 'by_date': {}}
-                    sales_2026[n_key]['qty'] += qty
-                    sales_2026[n_key]['by_dow'][dow] = sales_2026[n_key]['by_dow'].get(dow, 0) + qty
-                    if 'by_date' not in sales_2026[n_key]:
-                        sales_2026[n_key]['by_date'] = {}
-                    sales_2026[n_key]['by_date'][d] = sales_2026[n_key]['by_date'].get(d, 0) + qty
-            cursor = r.get('cursor')
-            if not cursor: break
-    except Exception as e:
-        print(f"2026 sales fetch error: {e}")
+    # 4. Fetch 2026 actual sales so far (using 5-min cache for fast performance)
+    sales_2026, orders_2026_count, actual_days_with_sales = fetch_2026_sales(start_date_str, force_refresh=force_refresh)
 
     # 5. Build event calendar: Day-of-week breakdown for elapsed days vs remaining days
     try:
@@ -1750,7 +1806,9 @@ def prediction_data():
         curr_price = 0.0
         for v in variations:
             vid = v.get('id')
-            p = float(v.get('item_variation_data', {}).get('price_money', {}).get('amount', 0)) / 100.0
+            v_data = v.get('item_variation_data') or {}
+            p_money = v_data.get('price_money') or {}
+            p = float(p_money.get('amount', 0)) / 100.0
             if p > curr_price:
                 curr_price = p
             if vid in inv_map:
