@@ -2438,5 +2438,443 @@ def prediction_data():
         'predictions': predictions
     })
 
+AUDIT_CHANGES_CACHE_FILE = os.path.join(DATA_DIR, 'audit_changes_cache.json')
+
+def fetch_audit_changes(vids, start_date_str, force_refresh=False):
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    now_iso = now_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    cached_data = None
+    if not force_refresh and os.path.exists(AUDIT_CHANGES_CACHE_FILE):
+        try:
+            with open(AUDIT_CHANGES_CACHE_FILE, 'r') as f:
+                cached_data = json.load(f)
+        except Exception as e:
+            print(f"Error reading audit cache: {e}")
+
+    if not force_refresh and cached_data:
+        cached_at = cached_data.get('cached_at', '')
+        earliest = cached_data.get('earliest_date', '')
+        try:
+            cache_dt = datetime.datetime.fromisoformat(cached_at.replace('Z', '+00:00'))
+            age_sec = (now_dt - cache_dt).total_seconds()
+            if age_sec < 180 and earliest <= start_date_str:
+                return cached_data.get('physical_counts', []), cached_data.get('non_sale_adjustments', [])
+        except Exception:
+            pass
+
+    is_incremental = False
+    if cached_data and cached_data.get('cached_at') and cached_data.get('earliest_date', '') <= start_date_str and not force_refresh:
+        fetch_start = cached_data['cached_at']
+        is_incremental = True
+        existing_pcs = {c.get('physical_count', {}).get('id', str(i)): c for i, c in enumerate(cached_data.get('physical_counts', []))}
+        existing_adjs = {c.get('adjustment', {}).get('id', str(i)): c for i, c in enumerate(cached_data.get('non_sale_adjustments', []))}
+    else:
+        fetch_start = f"{start_date_str}T00:00:00Z"
+        existing_pcs = {}
+        existing_adjs = {}
+
+    # 1. Physical Counts
+    try:
+        res_pc = client.inventory.deprecated_batch_get_changes(
+            catalog_object_ids=vids,
+            types=['PHYSICAL_COUNT'],
+            updated_after=fetch_start,
+            limit=100
+        ).dict()
+        for c in res_pc.get('changes', []):
+            cid = c.get('physical_count', {}).get('id') or str(len(existing_pcs))
+            existing_pcs[cid] = c
+    except Exception as e:
+        print(f"Error fetching physical counts: {e}")
+
+    # 2. Non-Sale Adjustments
+    try:
+        cursor = None
+        while True:
+            kw = {
+                'catalog_object_ids': vids,
+                'types': ['ADJUSTMENT'],
+                'states': ['NONE', 'WASTE', 'UNLINKED_RETURN'],
+                'updated_after': fetch_start,
+                'limit': 100
+            }
+            if cursor: kw['cursor'] = cursor
+            res = client.inventory.deprecated_batch_get_changes(**kw).dict()
+            for c in res.get('changes', []):
+                cid = c.get('adjustment', {}).get('id') or str(len(existing_adjs))
+                existing_adjs[cid] = c
+            cursor = res.get('cursor')
+            if not cursor: break
+    except Exception as e:
+        print(f"Error fetching non-sale adjustments: {e}")
+
+    final_pcs = list(existing_pcs.values())
+    final_adjs = list(existing_adjs.values())
+
+    try:
+        with open(AUDIT_CHANGES_CACHE_FILE, 'w') as f:
+            json.dump({
+                'cached_at': now_iso,
+                'earliest_date': start_date_str if not is_incremental else cached_data.get('earliest_date', start_date_str),
+                'physical_counts': final_pcs,
+                'non_sale_adjustments': final_adjs
+            }, f)
+    except Exception as e:
+        print(f"Error saving audit cache: {e}")
+
+    return final_pcs, final_adjs
+
+@app.route('/audit')
+def audit_page():
+    return render_template('audit.html')
+
+@app.route('/api/audit_data', methods=['GET', 'POST'])
+def api_audit_data():
+    try:
+        req_data = request.json or {} if request.method == 'POST' else request.args
+        start_date_str = req_data.get('start_date', '2026-09-27')
+        end_date_str = req_data.get('end_date', datetime.date.today().strftime('%Y-%m-%d'))
+        location_id = req_data.get('location_id', 'LYB44WM2Q56VE') # Default Big E stand
+        force_refresh = str(req_data.get('refresh', '')).lower() == 'true'
+
+        # 1. Catalog & Categories
+        catalog = get_cached_catalog(force_refresh=force_refresh)
+        objects = catalog.get('objects', [])
+        cat_map = {o['id']: o.get('category_data', {}) for o in objects if o.get('type') == 'CATEGORY'}
+
+        big_e_cat_ids = set()
+        for cid, cdata in cat_map.items():
+            cname = (cdata.get('name') or '').strip().lower()
+            if cname == 'big e' or cid == '44DHFMKH636YWQBB4AGMVFLV':
+                big_e_cat_ids.add(cid)
+
+        bige_all_category_ids = set(big_e_cat_ids)
+        changed = True
+        while changed:
+            changed = False
+            for cid, cdata in cat_map.items():
+                parent_id = (cdata.get('parent_category') or {}).get('id')
+                if parent_id in bige_all_category_ids and cid not in bige_all_category_ids:
+                    bige_all_category_ids.add(cid)
+                    changed = True
+
+        bige_subcats = []
+        for cid in sorted(list(bige_all_category_ids)):
+            if cid not in big_e_cat_ids:
+                bige_subcats.append({
+                    'id': cid,
+                    'name': cat_map.get(cid, {}).get('name', 'Subcategory')
+                })
+        bige_subcats.sort(key=lambda x: x['name'])
+
+        catalog_items = [o for o in objects if o.get('type') == 'ITEM']
+        
+        loc_names = {'LYB44WM2Q56VE': 'Big E', 'L3SVHVB0ASXT3': 'Car', 'LC5MVJDR74CCX': 'Stand', 'H1YDMJKB3ZEXM': 'Warehouse'}
+        try:
+            loc_res = client.locations.list().dict()
+            for l in loc_res.get('locations', []):
+                loc_names[l['id']] = l['name']
+        except Exception:
+            pass
+
+        # 2. Live Inventory Counts
+        all_vids = []
+        for it in catalog_items:
+            for v in it.get('item_data', {}).get('variations', []):
+                all_vids.append(v['id'])
+
+        counts_res = client.inventory.deprecated_batch_get_counts(catalog_object_ids=all_vids, states=['IN_STOCK']).dict()
+        live_stock_map = {}
+        for c in counts_res.get('counts', []):
+            vid = c.get('catalog_object_id')
+            lid = c.get('location_id')
+            qty = int(float(c.get('quantity', 0)))
+            live_stock_map.setdefault(vid, {})[lid] = qty
+
+        # 3. Sales Data
+        sales_2026, orders_count, _ = fetch_2026_sales('2026-09-12', force_refresh=force_refresh)
+
+        try:
+            s_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            e_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except Exception:
+            s_date = datetime.date(2026, 9, 27)
+            e_date = datetime.date(2026, 10, 3)
+
+        target_dates = set()
+        curr = s_date
+        while curr <= e_date:
+            target_dates.add(curr.strftime('%Y-%m-%d'))
+            curr += datetime.timedelta(days=1)
+
+        # 4. Changes
+        pcs_raw, adjs_raw = fetch_audit_changes(all_vids, start_date_str, force_refresh=force_refresh)
+
+        s_iso = f"{start_date_str}T00:00:00Z"
+        e_iso = f"{end_date_str}T23:59:59Z"
+
+        valid_pcs = [p for p in pcs_raw if s_iso <= p.get('physical_count', {}).get('occurred_at', '') <= e_iso]
+        valid_adjs = [a for a in adjs_raw if s_iso <= a.get('adjustment', {}).get('occurred_at', '') <= e_iso]
+
+        pcs_by_vid = {}
+        for p in valid_pcs:
+            vid = p.get('physical_count', {}).get('catalog_object_id')
+            pcs_by_vid.setdefault(vid, []).append(p)
+
+        adjs_by_vid = {}
+        for a in valid_adjs:
+            vid = a.get('adjustment', {}).get('catalog_object_id')
+            adjs_by_vid.setdefault(vid, []).append(a)
+
+        # 5. Build Item Audit Rows
+        items_report = []
+
+        total_sales_units = 0
+        total_sales_dollars = 0.0
+        total_transfers_in = 0
+        total_transfers_out = 0
+        total_waste_loss = 0
+        total_physical_recounts = 0
+        issue_items_count = 0
+
+        for item_obj in catalog_items:
+            idata = item_obj.get('item_data', {})
+            name = idata.get('name', 'Unknown')
+
+            item_cat_ids = []
+            if idata.get('category_id'): item_cat_ids.append(idata['category_id'])
+            for c in idata.get('categories', []):
+                cid = c.get('id') if isinstance(c, dict) else c
+                if cid and cid not in item_cat_ids: item_cat_ids.append(cid)
+
+            is_bige = any(cid in bige_all_category_ids for cid in item_cat_ids)
+            subcats = [cat_map[cid].get('name', 'General') for cid in item_cat_ids if cid in bige_all_category_ids and cid not in big_e_cat_ids]
+            subcat_name = subcats[0] if subcats else ('Big E' if is_bige else 'Other')
+
+            norm_name = normalize_item_name(name)
+            sales_item_data = sales_2026.get(norm_name, {})
+            sales_by_date = sales_item_data.get('by_date', {})
+
+            item_sales_qty = sum(sales_by_date.get(d, 0) for d in target_dates)
+
+            variations = idata.get('variations', [])
+            for var in variations:
+                vid = var.get('id')
+                vdata = var.get('item_variation_data') or {}
+                vname = vdata.get('name') or 'Regular'
+                price_money = vdata.get('price_money') or {}
+                price = float(price_money.get('amount', 0)) / 100.0
+
+                c_map = live_stock_map.get(vid, {})
+                stock_bige = c_map.get('LYB44WM2Q56VE', 0)
+                stock_car = c_map.get('L3SVHVB0ASXT3', 0)
+                stock_wh = c_map.get('H1YDMJKB3ZEXM', 0)
+                stock_stand = c_map.get('LC5MVJDR74CCX', 0)
+                stock_total = sum(c_map.values())
+
+                if location_id == 'all':
+                    current_stock = stock_total
+                else:
+                    current_stock = c_map.get(location_id, 0)
+
+                v_pcs = pcs_by_vid.get(vid, [])
+                v_adjs = adjs_by_vid.get(vid, [])
+
+                if location_id != 'all':
+                    v_transfers_in = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'IN_STOCK' and a['adjustment'].get('to_location_id') == location_id)
+                    v_transfers_out = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('from_state') == 'IN_STOCK' and a['adjustment'].get('from_location_id') == location_id)
+                    v_waste = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'WASTE' and a['adjustment'].get('to_location_id') == location_id)
+                    v_returns = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'UNLINKED_RETURN' and a['adjustment'].get('to_location_id') == location_id)
+                    v_loc_pcs = [p for p in v_pcs if p['physical_count'].get('location_id') == location_id]
+                    v_sales = item_sales_qty if location_id == 'LYB44WM2Q56VE' else 0
+                else:
+                    v_transfers_in = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'IN_STOCK')
+                    v_transfers_out = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('from_state') == 'IN_STOCK')
+                    v_waste = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'WASTE')
+                    v_returns = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'UNLINKED_RETURN')
+                    v_loc_pcs = v_pcs
+                    v_sales = item_sales_qty
+
+                v_net_transfers = v_transfers_in - v_transfers_out
+                v_sales_amount = v_sales * price
+
+                reconstructed_start = current_stock + v_sales - v_net_transfers + v_waste - v_returns
+
+                recount_count = len(v_loc_pcs)
+                latest_recount = None
+                if v_loc_pcs:
+                    latest_p = sorted(v_loc_pcs, key=lambda x: x['physical_count'].get('occurred_at', ''), reverse=True)[0]
+                    latest_recount = {
+                        'occurred_at': latest_p['physical_count'].get('occurred_at'),
+                        'quantity': int(float(latest_p['physical_count'].get('quantity', 0))),
+                        'location_name': loc_names.get(latest_p['physical_count'].get('location_id'), 'Unknown')
+                    }
+
+                status = 'BALANCED'
+                issues = []
+                if location_id == 'all' and v_transfers_in != v_transfers_out:
+                    status = 'TRANSFER_MISMATCH'
+                    issues.append(f"Network Transfer Mismatch: In({v_transfers_in}) != Out({v_transfers_out})")
+                if v_waste > 0:
+                    if status == 'BALANCED': status = 'SHRINKAGE'
+                    issues.append(f"{v_waste} units marked as Waste/Loss")
+                if recount_count > 0:
+                    if status == 'BALANCED': status = 'RECOUNTED'
+                    issues.append(f"{recount_count} manual count override(s)")
+                if reconstructed_start < 0:
+                    status = 'DISCREPANCY'
+                    issues.append(f"Negative reconstructed start ({reconstructed_start})")
+
+                if issues:
+                    issue_items_count += 1
+
+                timeline = []
+                # Sales events
+                for d in sorted(list(target_dates)):
+                    sqty = sales_by_date.get(d, 0)
+                    if sqty > 0:
+                        timeline.append({
+                            'occurred_at': f"{d}T23:59:00Z",
+                            'date_display': d,
+                            'type': 'SALE',
+                            'badge_class': 'bg-success',
+                            'delta': -int(sqty),
+                            'location': 'Big E Stand',
+                            'summary': f"Sold {int(sqty)} units via Square POS",
+                            'source': 'Square POS'
+                        })
+                # Adjustment events
+                for a in v_adjs:
+                    adj = a.get('adjustment', {})
+                    aqty = int(float(adj.get('quantity', 0)))
+                    from_s = adj.get('from_state')
+                    to_s = adj.get('to_state')
+                    from_l = loc_names.get(adj.get('from_location_id'), adj.get('from_location_id'))
+                    to_l = loc_names.get(adj.get('to_location_id'), adj.get('to_location_id'))
+                    occ = adj.get('occurred_at', '')
+                    src = (adj.get('source') or {}).get('name', 'Square')
+
+                    if to_s == 'WASTE':
+                        timeline.append({
+                            'occurred_at': occ,
+                            'date_display': occ[:10],
+                            'type': 'WASTE',
+                            'badge_class': 'bg-danger',
+                            'delta': -aqty,
+                            'location': to_l,
+                            'summary': f"Waste / Damaged / Shrinkage: -{aqty} units",
+                            'source': src
+                        })
+                    elif from_s == 'IN_STOCK' and to_s == 'NONE':
+                        timeline.append({
+                            'occurred_at': occ,
+                            'date_display': occ[:10],
+                            'type': 'TRANSFER_OUT',
+                            'badge_class': 'bg-warning text-dark',
+                            'delta': -aqty,
+                            'location': from_l,
+                            'summary': f"Transferred OUT of {from_l}: -{aqty} units",
+                            'source': src
+                        })
+                    elif from_s == 'NONE' and to_s == 'IN_STOCK':
+                        timeline.append({
+                            'occurred_at': occ,
+                            'date_display': occ[:10],
+                            'type': 'TRANSFER_IN',
+                            'badge_class': 'bg-info text-dark',
+                            'delta': +aqty,
+                            'location': to_l,
+                            'summary': f"Transferred IN to {to_l}: +{aqty} units",
+                            'source': src
+                        })
+
+                # Physical counts
+                for p in v_pcs:
+                    pdata = p.get('physical_count', {})
+                    pqty = int(float(pdata.get('quantity', 0)))
+                    ploc = loc_names.get(pdata.get('location_id'), 'Location')
+                    pocc = pdata.get('occurred_at', '')
+                    timeline.append({
+                        'occurred_at': pocc,
+                        'date_display': pocc[:10],
+                        'type': 'PHYSICAL_COUNT',
+                        'badge_class': 'bg-purple text-white',
+                        'delta': None,
+                        'count_value': pqty,
+                        'location': ploc,
+                        'summary': f"Manual Physical Recount: Count reset to {pqty} units",
+                        'source': 'Square Inventory Count'
+                    })
+
+                timeline.sort(key=lambda x: x['occurred_at'], reverse=True)
+
+                items_report.append({
+                    'item_id': item_obj['id'],
+                    'variation_id': vid,
+                    'name': name,
+                    'variation_name': vname,
+                    'category': subcat_name,
+                    'category_id': item_cat_ids[0] if item_cat_ids else '',
+                    'is_bige': is_bige,
+                    'price': price,
+                    'live_stock': {
+                        'current': current_stock,
+                        'total': stock_total,
+                        'bige': stock_bige,
+                        'car': stock_car,
+                        'warehouse': stock_wh,
+                        'stand': stock_stand
+                    },
+                    'sales_qty': int(v_sales),
+                    'sales_amount': round(v_sales_amount, 2),
+                    'transfers_in': v_transfers_in,
+                    'transfers_out': v_transfers_out,
+                    'net_transfers': v_net_transfers,
+                    'waste_loss': v_waste,
+                    'reconstructed_start': int(reconstructed_start),
+                    'recount_count': recount_count,
+                    'latest_recount': latest_recount,
+                    'status': status,
+                    'issues': issues,
+                    'timeline': timeline
+                })
+
+                total_sales_units += int(v_sales)
+                total_sales_dollars += v_sales_amount
+                total_transfers_in += v_transfers_in
+                total_transfers_out += v_transfers_out
+                total_waste_loss += v_waste
+                total_physical_recounts += recount_count
+
+        return jsonify({
+            'start_date': start_date_str,
+            'end_date': end_date_str,
+            'location_id': location_id,
+            'location_name': loc_names.get(location_id, 'All Locations') if location_id != 'all' else 'All Locations (Network)',
+            'locations': [{'id': lid, 'name': loc_names[lid]} for lid in sorted(loc_names.keys())],
+            'categories': {
+                'parent': 'Big E',
+                'subcategories': bige_subcats
+            },
+            'summary': {
+                'total_sales_units': total_sales_units,
+                'total_sales_revenue': round(total_sales_dollars, 2),
+                'total_transfers_in': total_transfers_in,
+                'total_transfers_out': total_transfers_out,
+                'network_transfer_balance': total_transfers_in - total_transfers_out,
+                'total_waste_loss': total_waste_loss,
+                'total_physical_recounts': total_physical_recounts,
+                'items_count': len(items_report),
+                'issue_items_count': issue_items_count
+            },
+            'items': items_report
+        })
+    except Exception as e:
+        print(f"Error in api_audit_data: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

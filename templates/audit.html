@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Big E Inventory - Reconciliation &amp; Audit Report</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="icon" type="image/svg+xml" href="/static/bige_icon.svg">
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.88);
+            --glass-border: rgba(255, 255, 255, 0.6);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+        }
+        body {
+            background-color: #f0f3f8;
+            font-family: system-ui, -apple-system, sans-serif;
+            color: #2d3748;
+            min-height: 100vh;
+        }
+
+        /* Nav Pills */
+        .nav-pills .nav-link { border-radius: 8px; color: rgba(255,255,255,0.85); padding: 6px 14px; margin-right: 4px; transition: all 0.2s ease; }
+        .nav-pills .nav-link:hover { background: rgba(255,255,255,0.15); color: #fff; }
+        .nav-pills .nav-link.active { background-color: #0d6efd !important; color: #fff !important; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+        }
+
+        .header-title {
+            background: linear-gradient(45deg, #1e3c72 0%, #2a5298 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800;
+        }
+
+        /* Metric cards */
+        .kpi-card {
+            border: none;
+            border-radius: 14px;
+            padding: 16px 18px;
+            background: #fff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+        }
+        .kpi-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            flex-shrink: 0;
+        }
+
+        /* Category Filter Pills */
+        .cat-pill {
+            font-size: 0.8rem;
+            padding: 5px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            border: 1px solid #dee2e6;
+            background: #fff;
+            color: #495057;
+            font-weight: 500;
+        }
+        .cat-pill.active {
+            background: #0d6efd;
+            color: #fff;
+            border-color: #0d6efd;
+            box-shadow: 0 2px 6px rgba(13, 110, 253, 0.3);
+        }
+        .cat-pill:hover:not(.active) {
+            background: #e9ecef;
+            border-color: #ced4da;
+        }
+
+        /* Responsive Table Container */
+        .table-wrapper {
+            position: relative;
+            max-height: calc(100vh - 350px);
+            min-height: 400px;
+            overflow: auto;
+            border-radius: 14px;
+            border: 1px solid rgba(0,0,0,0.06);
+            background: #fff;
+        }
+
+        .audit-table {
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+            margin-bottom: 0;
+        }
+
+        .audit-table thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #f8fafc;
+        }
+
+        .audit-table thead th {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #64748b;
+            font-weight: 700;
+            padding: 12px 14px;
+            border-bottom: 2px solid #e2e8f0;
+            white-space: nowrap;
+            background: #f8fafc;
+            user-select: none;
+        }
+
+        .sortable-th {
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .sortable-th:hover {
+            background: #eef2f6 !important;
+            color: #0d6efd;
+        }
+
+        .sort-indicator {
+            font-size: 0.75rem;
+            margin-left: 4px;
+            opacity: 0.35;
+        }
+        .sortable-th.sorted-asc .sort-indicator,
+        .sortable-th.sorted-desc .sort-indicator {
+            opacity: 1;
+            color: #0d6efd;
+        }
+
+        /* Sticky Left Column for Item Name */
+        .sticky-col {
+            position: sticky;
+            left: 0;
+            z-index: 5;
+            background: #fff !important;
+            box-shadow: 2px 0 6px rgba(0,0,0,0.04);
+            min-width: 220px;
+            max-width: 280px;
+        }
+        .audit-table thead th.sticky-col {
+            z-index: 12;
+            background: #f8fafc !important;
+        }
+        .audit-table tbody tr:hover td.sticky-col {
+            background: #f8fbff !important;
+        }
+
+        .audit-table tbody tr {
+            transition: background-color 0.15s ease;
+        }
+        .audit-table tbody tr:hover {
+            background-color: #f8fbff;
+        }
+        .audit-table tbody td {
+            padding: 12px 14px;
+            vertical-align: middle;
+            border-bottom: 1px solid #edf2f7;
+            font-size: 0.88rem;
+        }
+
+        /* Status Badges */
+        .badge-audit {
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 5px 9px;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
+        .badge-balanced { background: #d1e7dd; color: #0f5132; }
+        .badge-shrinkage { background: #f8d7da; color: #842029; }
+        .badge-mismatch { background: #fff3cd; color: #664d03; }
+        .badge-recounted { background: #e2d9f3; color: #432874; }
+        .badge-discrepancy { background: #f5c2c7; color: #842029; font-weight: 800; }
+
+        /* Timeline Items */
+        .timeline-container {
+            position: relative;
+            padding-left: 24px;
+        }
+        .timeline-container::before {
+            content: '';
+            position: absolute;
+            left: 9px;
+            top: 4px;
+            bottom: 4px;
+            width: 2px;
+            background: #e2e8f0;
+        }
+        .timeline-point {
+            position: relative;
+            margin-bottom: 16px;
+        }
+        .timeline-dot {
+            position: absolute;
+            left: -24px;
+            top: 4px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #0d6efd;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.2);
+        }
+
+        .spin-animation { animation: spin 0.8s linear infinite; display: inline-block; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <nav class="navbar navbar-expand bg-dark navbar-dark mb-4 shadow-sm">
+        <div class="container-fluid px-2 px-sm-3">
+            <a class="navbar-brand d-flex align-items-center me-2 me-sm-3" href="/" title="Made By">
+                <img src="/static/madeby_logo.png" alt="Made By" height="34" class="rounded-circle border border-light">
+            </a>
+            
+            <ul class="nav nav-pills me-auto">
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/" title="Manual Transfer">
+                        <i class="bi bi-arrow-left-right fs-5"></i>
+                        <span class="d-none d-md-inline">Manual</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/warehouse_to_car" title="House &rarr; Car">
+                        <i class="bi bi-truck fs-5"></i>
+                        <span class="d-none d-md-inline">Car</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/car_to_bige" title="Car &rarr; Big E">
+                        <img src="/static/bige_logo.png" width="22" height="22" class="rounded-circle" alt="Big E" onerror="this.src='/static/bige_icon.svg'">
+                        <span class="d-none d-md-inline">Big E</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/prediction" title="Prediction Dashboard">
+                        <i class="bi bi-graph-up-arrow fs-5"></i>
+                        <span class="d-none d-md-inline">Prediction</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active d-flex align-items-center gap-1" href="/audit" title="Audit &amp; Reconciliation">
+                        <i class="bi bi-clipboard-data fs-5"></i>
+                        <span class="d-none d-md-inline">Audit</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/qr_manager" title="QR Manager">
+                        <i class="bi bi-qr-code fs-5"></i>
+                        <span class="d-none d-md-inline">QR Codes</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center gap-1" href="/card_manager" title="Business Cards">
+                        <i class="bi bi-person-vcard fs-5"></i>
+                        <span class="d-none d-md-inline">Cards</span>
+                    </a>
+                </li>
+            </ul>
+
+            <div class="d-flex align-items-center gap-1 gap-sm-2">
+                <button class="btn btn-outline-light btn-sm" id="btn-sync" onclick="loadAuditData(true)" title="Sync live Square changes">
+                    <i class="bi bi-arrow-clockwise"></i> <span class="d-none d-lg-inline">Sync</span>
+                </button>
+                <a href="/settings" class="btn btn-outline-light btn-sm" title="Settings">
+                    <i class="bi bi-gear-fill"></i>
+                </a>
+                <a href="/logout" class="btn btn-outline-danger btn-sm" title="Logout">
+                    <i class="bi bi-box-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container-fluid px-3 px-lg-4 pb-5">
+        <!-- Page Title & Header -->
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <div>
+                <h1 class="h3 header-title mb-1"><i class="bi bi-clipboard-data text-primary me-2"></i>Inventory Audit &amp; Reconciliation</h1>
+                <p class="text-muted small mb-0">Reconstructing starting counts, sales, transfers, manual recount overrides, and shrinkage.</p>
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1" onclick="exportToCSV()" title="Export filtered rows to CSV">
+                    <i class="bi bi-download"></i> Export CSV
+                </button>
+                <button class="btn btn-primary btn-sm d-flex align-items-center gap-1" onclick="loadAuditData(true)">
+                    <i class="bi bi-arrow-repeat" id="sync-icon"></i> Refresh Data
+                </button>
+            </div>
+        </div>
+
+        <!-- Filter Controls Card -->
+        <div class="glass-card p-3 mb-4">
+            <div class="row g-3 align-items-end">
+                <!-- Location Select -->
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label fw-bold text-secondary small mb-1"><i class="bi bi-geo-alt me-1"></i>LOCATION FOCUS</label>
+                    <select class="form-select form-select-sm" id="select-location" onchange="onFilterChange()">
+                        <option value="LYB44WM2Q56VE" selected>Big E Stand (Event Booth)</option>
+                        <option value="all">All Locations (Network Total)</option>
+                        <option value="L3SVHVB0ASXT3">Car (Transit Staging)</option>
+                        <option value="H1YDMJKB3ZEXM">Warehouse (Home Base)</option>
+                        <option value="LC5MVJDR74CCX">Stand</option>
+                    </select>
+                </div>
+
+                <!-- Date Range -->
+                <div class="col-12 col-sm-6 col-md-4">
+                    <label class="form-label fw-bold text-secondary small mb-1"><i class="bi bi-calendar-range me-1"></i>DATE RANGE</label>
+                    <div class="input-group input-group-sm">
+                        <input type="date" class="form-control" id="input-start-date" value="2026-09-27" onchange="onDateRangeChange()">
+                        <span class="input-group-text bg-light text-muted">to</span>
+                        <input type="date" class="form-control" id="input-end-date" value="2026-10-03" onchange="onDateRangeChange()">
+                    </div>
+                </div>
+
+                <!-- Quick Date Presets -->
+                <div class="col-12 col-md-5 d-flex gap-1 flex-wrap align-items-center">
+                    <button class="btn btn-sm btn-outline-primary" onclick="setDateRange('2026-09-27', todayStr)">Since Sept 27</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="setDateRange('2026-09-12', todayStr)">Full Fair</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="setLastNDays(7)">Last 7 Days</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="setDateRange(todayStr, todayStr)">Today Only</button>
+                </div>
+            </div>
+
+            <hr class="my-3 opacity-25">
+
+            <!-- Category Filter Pills -->
+            <div class="d-flex flex-column gap-2">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div class="small fw-bold text-secondary text-uppercase"><i class="bi bi-tags me-1"></i>Category:</div>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="form-check form-switch small m-0">
+                            <input class="form-check-input" type="checkbox" id="switch-all-store" onchange="toggleAllStoreCategories()">
+                            <label class="form-check-label text-muted" for="switch-all-store">Include Non-Big-E Items</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex flex-wrap gap-1" id="category-pills-container">
+                    <span class="cat-pill active" data-cat="ALL_BIGE" onclick="selectCategory('ALL_BIGE')">
+                        <i class="bi bi-star-fill text-warning"></i> All Big E
+                    </span>
+                    <!-- Dynamic subcategory pills rendered by JS -->
+                </div>
+            </div>
+
+            <!-- Search and Issue Filter Bar -->
+            <div class="row g-2 mt-2 align-items-center">
+                <div class="col-12 col-md-5">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" class="form-control border-start-0 ps-0" id="input-search" placeholder="Search item name, variation, or SKU..." oninput="onSearchInput()">
+                        <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()" id="btn-clear-search" style="display:none;">&times;</button>
+                    </div>
+                </div>
+                <div class="col-12 col-md-7 d-flex gap-1 flex-wrap justify-content-md-end">
+                    <button class="btn btn-sm btn-outline-dark active" id="btn-filter-all" onclick="setIssueFilter('all')">All (<span id="count-all">0</span>)</button>
+                    <button class="btn btn-sm btn-outline-danger" id="btn-filter-waste" onclick="setIssueFilter('waste')"><i class="bi bi-trash3 me-1"></i>Waste/Loss (<span id="count-waste">0</span>)</button>
+                    <button class="btn btn-sm btn-outline-purple" id="btn-filter-recounted" onclick="setIssueFilter('recounted')" style="border-color:#6f42c1; color:#6f42c1;"><i class="bi bi-arrow-repeat me-1"></i>Recounted (<span id="count-recounted">0</span>)</button>
+                    <button class="btn btn-sm btn-outline-warning text-dark" id="btn-filter-mismatch" onclick="setIssueFilter('mismatch')"><i class="bi bi-exclamation-triangle me-1"></i>Mismatches (<span id="count-mismatch">0</span>)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary KPI Cards Row -->
+        <div class="row g-3 mb-4">
+            <!-- Total Sales KPI -->
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="kpi-card">
+                    <div class="kpi-icon bg-success-subtle text-success">
+                        <i class="bi bi-cart-check"></i>
+                    </div>
+                    <div>
+                        <div class="text-secondary small fw-bold text-uppercase">Sales (In Range)</div>
+                        <h3 class="h4 fw-bold mb-0 text-success" id="kpi-sales-qty">0 units</h3>
+                        <div class="text-muted small" id="kpi-sales-dollars">$0.00 revenue</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transfers KPI -->
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="kpi-card">
+                    <div class="kpi-icon bg-info-subtle text-primary">
+                        <i class="bi bi-arrow-left-right"></i>
+                    </div>
+                    <div>
+                        <div class="text-secondary small fw-bold text-uppercase">Net Transfers</div>
+                        <h3 class="h4 fw-bold mb-0 text-dark" id="kpi-transfers">0 units</h3>
+                        <div class="text-muted small" id="kpi-transfer-detail">In: 0 | Out: 0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Waste / Shrinkage KPI -->
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="kpi-card">
+                    <div class="kpi-icon bg-danger-subtle text-danger">
+                        <i class="bi bi-shield-x"></i>
+                    </div>
+                    <div>
+                        <div class="text-secondary small fw-bold text-uppercase">Waste / Shrinkage</div>
+                        <h3 class="h4 fw-bold mb-0 text-danger" id="kpi-waste">0 units</h3>
+                        <div class="text-muted small" id="kpi-waste-items">0 items affected</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Physical Recounts KPI -->
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background: rgba(111, 66, 193, 0.12); color: #6f42c1;">
+                        <i class="bi bi-check2-circle"></i>
+                    </div>
+                    <div>
+                        <div class="text-secondary small fw-bold text-uppercase">Physical Recounts</div>
+                        <h3 class="h4 fw-bold mb-0" style="color: #6f42c1;" id="kpi-recounts">0 events</h3>
+                        <div class="text-muted small" id="kpi-recounts-items">Manual POS overrides</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audit Table Card -->
+        <div class="glass-card p-0 mb-4 overflow-hidden">
+            <div class="p-3 bg-white border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <h5 class="m-0 fw-bold"><i class="bi bi-table text-primary me-2"></i>Reconciliation Ledger</h5>
+                    <span class="badge bg-light text-secondary border" id="display-count">Showing 0 items</span>
+                </div>
+                <div class="small text-muted">
+                    <span class="d-inline-flex align-items-center me-3"><i class="bi bi-circle-fill text-success me-1" style="font-size:0.6rem;"></i> Balanced</span>
+                    <span class="d-inline-flex align-items-center me-3"><i class="bi bi-circle-fill text-danger me-1" style="font-size:0.6rem;"></i> Waste/Shrinkage</span>
+                    <span class="d-inline-flex align-items-center me-3"><i class="bi bi-circle-fill text-warning me-1" style="font-size:0.6rem;"></i> Transfer Mismatch</span>
+                    <span class="d-inline-flex align-items-center"><i class="bi bi-circle-fill me-1" style="font-size:0.6rem; color:#6f42c1;"></i> Recount Override</span>
+                </div>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="audit-table">
+                    <thead>
+                        <tr>
+                            <th class="sticky-col sortable-th" onclick="sortTable('name')">
+                                Item Name &amp; Variation <span class="sort-indicator" id="sort-name"><i class="bi bi-arrow-down-up"></i></span>
+                            </th>
+                            <th class="sortable-th" onclick="sortTable('category')">
+                                Subcategory <span class="sort-indicator" id="sort-category"><i class="bi bi-arrow-down-up"></i></span>
+                            </th>
+                            <th class="sortable-th text-center" onclick="sortTable('live_stock')">
+                                Live Stock <span class="sort-indicator" id="sort-live_stock"><i class="bi bi-arrow-down-up"></i></span>
+                            </th>
+                            <th class="sortable-th text-center" onclick="sortTable('start_stock')" title="Calculated starting stock as of Start Date">
+                                Start Stock <span class="sort-indicator" id="sort-start_stock"><i class="bi bi-arrow-down-up"></i></span>
+                            </th>
+                            <th class="sortable-th text-center" onclick="sortTable('sales')" title="POS units sold in date range">
+                                Sales Qty <span class="sort-indicator" id="sort-sales"><i class="bi bi-arrow-down-up"></i></span>
+                            </th>
+                            <th class="sortable-th text-end" onclick="sortTable('sales_amount')">
+                                Sales $ <span class="sort-indicator" id="sort-sales_amount"><i class="bi bi-arrow-down-up"></i></span>
+                            </th>
+                            <th class="sortable-th text-center" onclick="sortTable('transfers_in')">
+                                Trans IN <span class="sort-indicator" id="sort-transfers_in"><i class="bi bi-arrow-down-up"></i></span>
+                            </th>
+                            <th class="sortable-th text-center" onclick="sortTable('transfers_out')">
+                                Trans OUT <span class="sort-indicator" id="sort-transfers_out"><i class="bi bi-arrow-down-up"></i></span>
+                            </th>
+                            <th class="sortable-th text-center" onclick="sortTable('net_transfers')">
+                                Net Trans <span class="sort-indicator" id="sort-net_transfers"><i class="bi bi-arrow-down-up"></i></span>
+                            </th>
+                            <th class="sortable-th text-center" onclick="sortTable('waste')" title="Items recorded as damaged, lost, or spoiled">
+                                Waste/Loss <span class="sort-indicator" id="sort-waste"><i class="bi bi-arrow-down-up"></i></span>
+                            </th>
+                            <th class="sortable-th text-center" onclick="sortTable('recounts')" title="Manual inventory recounts entered in Square">
+                                Recounts <span class="sort-indicator" id="sort-recounts"><i class="bi bi-arrow-down-up"></i></span>
+                            </th>
+                            <th class="sortable-th text-center" onclick="sortTable('status')">
+                                Status <span class="sort-indicator" id="sort-status"><i class="bi bi-arrow-down-up"></i></span>
+                            </th>
+                            <th class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="audit-table-body">
+                        <tr>
+                            <td colspan="13" class="text-center py-5 text-muted">
+                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                Loading inventory audit &amp; reconciliation data...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Item Audit Timeline Modal -->
+    <div class="modal fade" id="modal-timeline" tabindex="-1" aria-labelledby="modalTimelineTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+                <div class="modal-header border-0 pb-0">
+                    <div>
+                        <h5 class="modal-title fw-bold" id="modalTimelineTitle">Item Audit Ledger</h5>
+                        <p class="text-muted small mb-0" id="modalTimelineSubtitle">Chronological event history in date range</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <!-- Quick Stats on Item -->
+                    <div class="row g-2 mb-4 p-3 bg-light rounded-3 text-center" id="modal-item-kpis">
+                        <!-- Populated by JS -->
+                    </div>
+
+                    <h6 class="fw-bold mb-3"><i class="bi bi-clock-history text-primary me-2"></i>Audit Event Timeline</h6>
+                    <div class="timeline-container" id="timeline-events-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap & Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // State
+        const todayStr = new Date().toISOString().substring(0, 10);
+        let currentData = null;
+        let selectedCategory = 'ALL_BIGE';
+        let issueFilter = 'all';
+        let currentSort = { column: 'sales', desc: true };
+        let timelineModal = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            timelineModal = new bootstrap.Modal(document.getElementById('modal-timeline'));
+            loadAuditData();
+        });
+
+        function setDateRange(start, end) {
+            document.getElementById('input-start-date').value = start;
+            document.getElementById('input-end-date').value = end;
+            loadAuditData();
+        }
+
+        function setLastNDays(n) {
+            const e = new Date();
+            const s = new Date();
+            s.setDate(e.getDate() - n);
+            setDateRange(s.toISOString().substring(0, 10), e.toISOString().substring(0, 10));
+        }
+
+        function onDateRangeChange() {
+            loadAuditData();
+        }
+
+        function onFilterChange() {
+            renderTable();
+        }
+
+        function onSearchInput() {
+            const val = document.getElementById('input-search').value.trim();
+            document.getElementById('btn-clear-search').style.display = val ? 'inline-block' : 'none';
+            renderTable();
+        }
+
+        function clearSearch() {
+            document.getElementById('input-search').value = '';
+            document.getElementById('btn-clear-search').style.display = 'none';
+            renderTable();
+        }
+
+        function setIssueFilter(filter) {
+            issueFilter = filter;
+            ['all', 'waste', 'recounted', 'mismatch'].forEach(f => {
+                const btn = document.getElementById('btn-filter-' + f);
+                if (btn) {
+                    if (f === filter) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                }
+            });
+            renderTable();
+        }
+
+        function selectCategory(cat) {
+            selectedCategory = cat;
+            document.querySelectorAll('.cat-pill').forEach(el => {
+                el.classList.toggle('active', el.getAttribute('data-cat') === cat);
+            });
+            renderTable();
+        }
+
+        function toggleAllStoreCategories() {
+            renderTable();
+        }
+
+        async function loadAuditData(forceRefresh = false) {
+            const syncIcon = document.getElementById('sync-icon');
+            if (syncIcon) syncIcon.classList.add('spin-animation');
+
+            const startDate = document.getElementById('input-start-date').value || '2026-09-27';
+            const endDate = document.getElementById('input-end-date').value || todayStr;
+            const locationId = document.getElementById('select-location').value;
+
+            try {
+                const resp = await fetch(`/api/audit_data?start_date=${startDate}&end_date=${endDate}&location_id=${locationId}&refresh=${forceRefresh}`);
+                const data = await resp.json();
+                if (data.error) {
+                    alert('Error loading audit data: ' + data.error);
+                    return;
+                }
+                currentData = data;
+                updateCategoryPills(data.categories);
+                renderTable();
+            } catch (err) {
+                console.error(err);
+                alert('Network error loading audit data');
+            } finally {
+                if (syncIcon) syncIcon.classList.remove('spin-animation');
+            }
+        }
+
+        function updateCategoryPills(cats) {
+            const container = document.getElementById('category-pills-container');
+            const subcats = (cats && cats.subcategories) ? cats.subcategories : [];
+            
+            let html = `
+                <span class="cat-pill ${selectedCategory === 'ALL_BIGE' ? 'active' : ''}" data-cat="ALL_BIGE" onclick="selectCategory('ALL_BIGE')">
+                    <i class="bi bi-star-fill text-warning"></i> All Big E
+                </span>
+                <span class="cat-pill ${selectedCategory === 'ALL' ? 'active' : ''}" data-cat="ALL" onclick="selectCategory('ALL')">
+                    All Categories
+                </span>
+            `;
+
+            subcats.forEach(sc => {
+                html += `
+                    <span class="cat-pill ${selectedCategory === sc.name ? 'active' : ''}" data-cat="${escapeHtml(sc.name)}" onclick="selectCategory('${escapeHtml(sc.name)}')">
+                        ${escapeHtml(sc.name)}
+                    </span>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderTable() {
+            if (!currentData || !currentData.items) return;
+
+            const includeAllStore = document.getElementById('switch-all-store').checked;
+            const searchTerm = (document.getElementById('input-search').value || '').trim().toLowerCase();
+            const locationId = document.getElementById('select-location').value;
+
+            let filtered = currentData.items.filter(item => {
+                // Category Filter
+                if (!includeAllStore && !item.is_bige) return false;
+                if (selectedCategory === 'ALL_BIGE' && !item.is_bige) return false;
+                if (selectedCategory !== 'ALL' && selectedCategory !== 'ALL_BIGE' && item.category !== selectedCategory) return false;
+
+                // Search Filter
+                if (searchTerm) {
+                    const match = item.name.toLowerCase().includes(searchTerm) ||
+                                  item.variation_name.toLowerCase().includes(searchTerm) ||
+                                  item.category.toLowerCase().includes(searchTerm);
+                    if (!match) return false;
+                }
+
+                // Issue Filter
+                if (issueFilter === 'waste' && item.waste_loss <= 0) return false;
+                if (issueFilter === 'recounted' && item.recount_count <= 0) return false;
+                if (issueFilter === 'mismatch' && item.status !== 'TRANSFER_MISMATCH') return false;
+
+                return true;
+            });
+
+            // Update Counts in UI
+            const allCount = currentData.items.filter(i => (includeAllStore || i.is_bige)).length;
+            const wasteCount = currentData.items.filter(i => (includeAllStore || i.is_bige) && i.waste_loss > 0).length;
+            const recountCount = currentData.items.filter(i => (includeAllStore || i.is_bige) && i.recount_count > 0).length;
+            const mismatchCount = currentData.items.filter(i => (includeAllStore || i.is_bige) && i.status === 'TRANSFER_MISMATCH').length;
+
+            document.getElementById('count-all').textContent = allCount;
+            document.getElementById('count-waste').textContent = wasteCount;
+            document.getElementById('count-recounted').textContent = recountCount;
+            document.getElementById('count-mismatch').textContent = mismatchCount;
+
+            // Sorting
+            filtered.sort((a, b) => {
+                let vA, vB;
+                switch (currentSort.column) {
+                    case 'name': vA = a.name.toLowerCase(); vB = b.name.toLowerCase(); break;
+                    case 'category': vA = a.category.toLowerCase(); vB = b.category.toLowerCase(); break;
+                    case 'live_stock': vA = a.live_stock.current; vB = b.live_stock.current; break;
+                    case 'start_stock': vA = a.reconstructed_start; vB = b.reconstructed_start; break;
+                    case 'sales': vA = a.sales_qty; vB = b.sales_qty; break;
+                    case 'sales_amount': vA = a.sales_amount; vB = b.sales_amount; break;
+                    case 'transfers_in': vA = a.transfers_in; vB = b.transfers_in; break;
+                    case 'transfers_out': vA = a.transfers_out; vB = b.transfers_out; break;
+                    case 'net_transfers': vA = a.net_transfers; vB = b.net_transfers; break;
+                    case 'waste': vA = a.waste_loss; vB = b.waste_loss; break;
+                    case 'recounts': vA = a.recount_count; vB = b.recount_count; break;
+                    case 'status': vA = a.status; vB = b.status; break;
+                    default: vA = a.sales_qty; vB = b.sales_qty;
+                }
+                if (vA < vB) return currentSort.desc ? 1 : -1;
+                if (vA > vB) return currentSort.desc ? -1 : 1;
+                return 0;
+            });
+
+            // Update KPI Cards from current filtered dataset
+            let totalSalesQty = 0;
+            let totalSalesRevenue = 0;
+            let totalIn = 0;
+            let totalOut = 0;
+            let totalWaste = 0;
+            let totalRecounts = 0;
+            let wasteItemsSet = 0;
+
+            filtered.forEach(i => {
+                totalSalesQty += i.sales_qty;
+                totalSalesRevenue += i.sales_amount;
+                totalIn += i.transfers_in;
+                totalOut += i.transfers_out;
+                totalWaste += i.waste_loss;
+                totalRecounts += i.recount_count;
+                if (i.waste_loss > 0) wasteItemsSet++;
+            });
+
+            document.getElementById('kpi-sales-qty').textContent = totalSalesQty.toLocaleString() + ' units';
+            document.getElementById('kpi-sales-dollars').textContent = '$' + totalSalesRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' revenue';
+            
+            const netTrans = totalIn - totalOut;
+            document.getElementById('kpi-transfers').textContent = (netTrans > 0 ? '+' : '') + netTrans.toLocaleString() + ' units';
+            document.getElementById('kpi-transfer-detail').textContent = `In: ${totalIn} | Out: ${totalOut}`;
+            
+            document.getElementById('kpi-waste').textContent = totalWaste.toLocaleString() + ' units';
+            document.getElementById('kpi-waste-items').textContent = `${wasteItemsSet} items recorded`;
+            
+            document.getElementById('kpi-recounts').textContent = totalRecounts.toLocaleString() + ' events';
+            document.getElementById('display-count').textContent = `Showing ${filtered.length} of ${allCount} items`;
+
+            // Build Table Rows
+            const tbody = document.getElementById('audit-table-body');
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="13" class="text-center py-5 text-muted">No items match the selected filters.</td></tr>`;
+                return;
+            }
+
+            let rows = '';
+            filtered.forEach((item, idx) => {
+                // Status badge
+                let statusBadge = '<span class="badge-audit badge-balanced"><i class="bi bi-check-circle"></i> Balanced</span>';
+                if (item.status === 'SHRINKAGE') {
+                    statusBadge = `<span class="badge-audit badge-shrinkage" title="${item.waste_loss} units lost"><i class="bi bi-shield-x"></i> -${item.waste_loss} Waste</span>`;
+                } else if (item.status === 'TRANSFER_MISMATCH') {
+                    statusBadge = `<span class="badge-audit badge-mismatch" title="In != Out"><i class="bi bi-exclamation-triangle"></i> Mismatch</span>`;
+                } else if (item.status === 'RECOUNTED') {
+                    statusBadge = `<span class="badge-audit badge-recounted" title="Count reset in POS"><i class="bi bi-arrow-repeat"></i> Recounted</span>`;
+                } else if (item.status === 'DISCREPANCY') {
+                    statusBadge = `<span class="badge-audit badge-discrepancy" title="Negative calculated count"><i class="bi bi-x-circle"></i> Check Count</span>`;
+                }
+
+                // Breakdown tooltip for live stock
+                const locStock = item.live_stock;
+                const locTooltip = `Big E: ${locStock.bige} | Car: ${locStock.car} | Warehouse: ${locStock.warehouse}`;
+
+                rows += `
+                    <tr>
+                        <td class="sticky-col">
+                            <div class="fw-bold text-dark text-truncate" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+                            <div class="small text-muted">${escapeHtml(item.variation_name)} &bull; $${item.price.toFixed(2)}</div>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-secondary border">${escapeHtml(item.category)}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-primary fs-6 px-2 py-1" title="${locTooltip}">${item.live_stock.current}</span>
+                        </td>
+                        <td class="text-center fw-semibold text-secondary">
+                            ${item.reconstructed_start}
+                        </td>
+                        <td class="text-center fw-bold text-success">
+                            ${item.sales_qty > 0 ? item.sales_qty : '<span class="text-muted opacity-50">0</span>'}
+                        </td>
+                        <td class="text-end fw-semibold text-success">
+                            ${item.sales_amount > 0 ? '$' + item.sales_amount.toFixed(2) : '<span class="text-muted opacity-50">$0.00</span>'}
+                        </td>
+                        <td class="text-center text-info-emphasis">
+                            ${item.transfers_in > 0 ? '+' + item.transfers_in : '0'}
+                        </td>
+                        <td class="text-center text-warning-emphasis">
+                            ${item.transfers_out > 0 ? '-' + item.transfers_out : '0'}
+                        </td>
+                        <td class="text-center fw-bold ${item.net_transfers > 0 ? 'text-primary' : (item.net_transfers < 0 ? 'text-warning-emphasis' : 'text-muted')}">
+                            ${item.net_transfers > 0 ? '+' + item.net_transfers : item.net_transfers}
+                        </td>
+                        <td class="text-center ${item.waste_loss > 0 ? 'text-danger fw-bold' : 'text-muted'}">
+                            ${item.waste_loss > 0 ? '-' + item.waste_loss : '0'}
+                        </td>
+                        <td class="text-center">
+                            ${item.recount_count > 0 ? `<span class="badge bg-purple text-white rounded-pill px-2" style="background:#6f42c1;">${item.recount_count}</span>` : '<span class="text-muted opacity-50">-</span>'}
+                        </td>
+                        <td class="text-center">
+                            ${statusBadge}
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-outline-primary btn-sm py-0 px-2" onclick="openItemTimeline('${item.variation_id}')" title="View complete history timeline">
+                                <i class="bi bi-clock-history"></i> Ledger
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = rows;
+        }
+
+        function sortTable(column) {
+            if (currentSort.column === column) {
+                currentSort.desc = !currentSort.desc;
+            } else {
+                currentSort.column = column;
+                currentSort.desc = true;
+            }
+
+            // Update UI sort indicators
+            document.querySelectorAll('.sortable-th').forEach(th => th.classList.remove('sorted-asc', 'sorted-desc'));
+            document.querySelectorAll('.sort-indicator').forEach(el => el.innerHTML = '<i class="bi bi-arrow-down-up"></i>');
+
+            const headerIndicator = document.getElementById('sort-' + column);
+            if (headerIndicator) {
+                const parentTh = headerIndicator.closest('th');
+                if (parentTh) parentTh.classList.add(currentSort.desc ? 'sorted-desc' : 'sorted-asc');
+                headerIndicator.innerHTML = currentSort.desc ? '<i class="bi bi-sort-down text-primary"></i>' : '<i class="bi bi-sort-up text-primary"></i>';
+            }
+
+            renderTable();
+        }
+
+        function openItemTimeline(variationId) {
+            if (!currentData || !currentData.items) return;
+            const item = currentData.items.find(i => i.variation_id === variationId);
+            if (!item) return;
+
+            document.getElementById('modalTimelineTitle').textContent = item.name + ' (' + item.variation_name + ')';
+            document.getElementById('modalTimelineSubtitle').textContent = `Category: ${item.category} | Live Stock: ${item.live_stock.current} (Big E: ${item.live_stock.bige}, Car: ${item.live_stock.car}, WH: ${item.live_stock.warehouse})`;
+
+            // Modal KPIs
+            document.getElementById('modal-item-kpis').innerHTML = `
+                <div class="col-3">
+                    <div class="small text-muted">Reconstructed Start</div>
+                    <div class="h5 fw-bold m-0">${item.reconstructed_start}</div>
+                </div>
+                <div class="col-3">
+                    <div class="small text-muted">Sales Qty</div>
+                    <div class="h5 fw-bold text-success m-0">${item.sales_qty} ($${item.sales_amount.toFixed(2)})</div>
+                </div>
+                <div class="col-3">
+                    <div class="small text-muted">Net Transfers</div>
+                    <div class="h5 fw-bold text-primary m-0">${item.net_transfers > 0 ? '+' : ''}${item.net_transfers}</div>
+                </div>
+                <div class="col-3">
+                    <div class="small text-muted">Waste / Loss</div>
+                    <div class="h5 fw-bold text-danger m-0">-${item.waste_loss}</div>
+                </div>
+            `;
+
+            // Timeline events
+            const listEl = document.getElementById('timeline-events-list');
+            if (!item.timeline || item.timeline.length === 0) {
+                listEl.innerHTML = '<div class="text-muted text-center py-4">No events recorded during this date range.</div>';
+            } else {
+                let html = '';
+                item.timeline.forEach(ev => {
+                    let dotColor = '#0d6efd';
+                    if (ev.type === 'SALE') dotColor = '#198754';
+                    else if (ev.type === 'WASTE') dotColor = '#dc3545';
+                    else if (ev.type === 'PHYSICAL_COUNT') dotColor = '#6f42c1';
+                    else if (ev.type === 'TRANSFER_OUT') dotColor = '#ffc107';
+
+                    let deltaBadge = '';
+                    if (ev.delta !== null && ev.delta !== undefined) {
+                        deltaBadge = `<span class="badge ${ev.delta > 0 ? 'bg-info text-dark' : 'bg-secondary'}">${ev.delta > 0 ? '+' : ''}${ev.delta} units</span>`;
+                    } else if (ev.count_value !== undefined) {
+                        deltaBadge = `<span class="badge bg-purple text-white" style="background:#6f42c1;">Set to ${ev.count_value}</span>`;
+                    }
+
+                    html += `
+                        <div class="timeline-point">
+                            <div class="timeline-dot" style="background: ${dotColor};"></div>
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div>
+                                    <div class="fw-bold text-dark">${escapeHtml(ev.summary)}</div>
+                                    <div class="small text-muted">
+                                        <i class="bi bi-clock me-1"></i>${formatDateTime(ev.occurred_at)} &bull; 
+                                        <i class="bi bi-geo-alt me-1"></i>${escapeHtml(ev.location)} &bull; 
+                                        Source: <span class="badge bg-light text-dark border">${escapeHtml(ev.source)}</span>
+                                    </div>
+                                </div>
+                                <div>${deltaBadge}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                listEl.innerHTML = html;
+            }
+
+            timelineModal.show();
+        }
+
+        function formatDateTime(isoStr) {
+            if (!isoStr) return '';
+            try {
+                const dt = new Date(isoStr);
+                return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + 
+                       dt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+            } catch (e) {
+                return isoStr;
+            }
+        }
+
+        function exportToCSV() {
+            if (!currentData || !currentData.items) return;
+            const locationName = document.getElementById('select-location').selectedOptions[0].text;
+            const startDate = document.getElementById('input-start-date').value;
+            const endDate = document.getElementById('input-end-date').value;
+
+            let csv = `Big E Inventory Reconciliation & Audit Report\n`;
+            csv += `Location: ${locationName}\n`;
+            csv += `Date Range: ${startDate} to ${endDate}\n\n`;
+            csv += `Item Name,Variation,Category,Live Stock,Start Stock,Sales Qty,Sales Revenue,Transfers In,Transfers Out,Net Transfers,Waste Loss,Recounts Count,Status\n`;
+
+            currentData.items.forEach(i => {
+                const row = [
+                    `"${(i.name || '').replace(/"/g, '""')}"`,
+                    `"${(i.variation_name || '').replace(/"/g, '""')}"`,
+                    `"${(i.category || '').replace(/"/g, '""')}"`,
+                    i.live_stock.current,
+                    i.reconstructed_start,
+                    i.sales_qty,
+                    i.sales_amount.toFixed(2),
+                    i.transfers_in,
+                    i.transfers_out,
+                    i.net_transfers,
+                    i.waste_loss,
+                    i.recount_count,
+                    i.status
+                ];
+                csv += row.join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `inventory_audit_${startDate}_to_${endDate}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[m]);
+        }
+    </script>
+</body>
+</html>
