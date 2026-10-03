@@ -292,6 +292,9 @@
                 padding-bottom: 20px !important;
             }
         }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .spin-animation { display: inline-block; animation: spin 0.8s linear infinite; }
     </style>
 </head>
 <body>
@@ -343,7 +346,14 @@
                 <h1 class="display-6 header-title mb-0 fs-3">Smart Event Forecast &amp; Stockout Analyzer</h1>
                 <p class="text-muted small mb-0 header-subtitle">Dynamic multi-year baseline comparing matching days of the week, weather, price elasticity, and live network inventory.</p>
             </div>
-            <div class="d-flex gap-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge bg-white text-secondary border shadow-sm d-inline-flex align-items-center gap-1.5 px-2.5 py-1.5" id="auto-refresh-pill" title="Live Auto-Refresh: Automatically syncs new Square actuals & inventory every 3 minutes">
+                    <span class="spinner-grow spinner-grow-sm text-success" role="status" style="width: 0.5rem; height: 0.5rem;" id="refresh-pulse"></span>
+                    <span id="last-updated-text" class="fw-normal" style="font-size: 0.78rem;">Live sync enabled</span>
+                </span>
+                <button class="btn btn-sm btn-outline-primary shadow-sm" id="btn-quick-refresh" onclick="generatePrediction(true, false)" title="Fetch latest Square sales and inventory counts immediately">
+                    <i class="bi bi-arrow-clockwise me-1" id="quick-refresh-icon"></i><span>Refresh Now</span>
+                </button>
                 <button class="btn btn-sm btn-outline-secondary shadow-sm" id="btn-toggle-panels" onclick="togglePanels()" title="Toggle parameters and insights summary to maximize table view">
                     <i class="bi bi-chevron-up me-1"></i><span id="btn-toggle-panels-text">Hide Panels</span>
                 </button>
@@ -505,6 +515,7 @@
                             
                             <select class="form-select form-select-sm" id="status-filter" style="width: 185px;" onchange="filterTable()">
                                 <option value="ALL">All Items</option>
+                                <option value="SHORTAGE">🚨 Shortage Only</option>
                                 <option value="SURGING">🔥 Surging</option>
                                 <option value="TRANSFER_TODAY">⚡ Transfer Today</option>
                                 <option value="CRITICAL_STOCKOUT">🚨 Critical Stockout</option>
@@ -524,12 +535,13 @@
                                     <th>Predicted Remainder</th>
                                     <th>Total Expected</th>
                                     <th>All Available Stock</th>
+                                    <th class="text-center">Shortage / Buffer</th>
                                     <th>Runout Status</th>
                                 </tr>
                             </thead>
                             <tbody id="prediction-table-body">
                                 <tr>
-                                    <td colspan="7" class="text-center py-5 text-muted">
+                                    <td colspan="8" class="text-center py-5 text-muted">
                                         <i class="bi bi-inbox fs-1 d-block mb-3"></i>
                                         Click "Run Forecast Model" to calculate predictions
                                     </td>
@@ -622,7 +634,47 @@
             }
         }
 
-        async function generatePrediction(forceRefresh = false) {
+        let autoRefreshTimer = null;
+        let lastUpdatedTime = null;
+        let isRefreshing = false;
+
+        function updateLastUpdatedDisplay() {
+            const textEl = document.getElementById('last-updated-text');
+            if (!textEl || !lastUpdatedTime) return;
+            const diffSec = Math.round((new Date() - lastUpdatedTime) / 1000);
+            if (diffSec < 60) {
+                textEl.innerText = 'Updated just now';
+            } else {
+                const diffMin = Math.floor(diffSec / 60);
+                textEl.innerText = `Updated ${diffMin}m ago`;
+            }
+        }
+
+        setInterval(updateLastUpdatedDisplay, 30000);
+
+        function startAutoRefresh() {
+            if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+            // Auto refresh every 3 minutes (180s) to match sales cache TTL
+            autoRefreshTimer = setInterval(() => {
+                if (!document.hidden && !isRefreshing) {
+                    generatePrediction(true, true);
+                }
+            }, 180000);
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && lastUpdatedTime && !isRefreshing) {
+                const elapsedMs = new Date() - lastUpdatedTime;
+                if (elapsedMs >= 180000) {
+                    generatePrediction(true, true);
+                }
+            }
+        });
+
+        async function generatePrediction(forceRefresh = false, isBackground = false) {
+            if (isRefreshing) return;
+            isRefreshing = true;
+
             const startDate = document.getElementById('start_date').value;
             const endDate = document.getElementById('end_date').value;
             const location = document.getElementById('location').value;
@@ -633,10 +685,20 @@
 
             if (!startDate || !endDate || !location) {
                 alert('Please fill in all parameters.');
+                isRefreshing = false;
                 return;
             }
 
-            document.getElementById('loading-overlay').classList.remove('d-none');
+            const quickIcon = document.getElementById('quick-refresh-icon');
+            const lastUpdatedText = document.getElementById('last-updated-text');
+
+            if (isBackground) {
+                if (quickIcon) quickIcon.classList.add('spin-animation');
+                if (lastUpdatedText) lastUpdatedText.innerText = 'Syncing...';
+            } else {
+                document.getElementById('loading-overlay').classList.remove('d-none');
+                if (quickIcon) quickIcon.classList.add('spin-animation');
+            }
 
             try {
                 const response = await fetch('/api/prediction_data', {
@@ -736,12 +798,23 @@
                     }
                 }
 
-                // Count critical stockouts
-                const criticalCount = allPredictions.filter(p => p.status === 'CRITICAL_STOCKOUT').length;
+                // Count critical stockouts & total shortage units
+                const stockSummary = data.stockout_summary || {};
+                const criticalCount = (stockSummary.critical_items != null)
+                    ? stockSummary.critical_items
+                    : allPredictions.filter(p => p.status === 'CRITICAL_STOCKOUT').length;
+                const totalShortage = (stockSummary.total_shortage_units != null)
+                    ? stockSummary.total_shortage_units
+                    : allPredictions.reduce((acc, p) => acc + Math.max(0, p.predicted_remainder - ((p.inventory && p.inventory.total) || 0)), 0);
+
                 const statStockoutsEl = document.getElementById('stat-stockouts');
                 if (statStockoutsEl) statStockoutsEl.innerText = `${criticalCount} Items`;
                 const statStockoutsSubEl = document.getElementById('stat-stockouts-sub');
-                if (statStockoutsSubEl) statStockoutsSubEl.innerText = criticalCount > 0 ? 'Will run out across ALL locations' : 'Network stock sufficient';
+                if (statStockoutsSubEl) {
+                    statStockoutsSubEl.innerHTML = criticalCount > 0 
+                        ? `<strong class="text-danger">${totalShortage} units short total</strong> across network` 
+                        : 'Network stock sufficient';
+                }
 
                 // Update Compact Mini-Bar
                 const miniProg = document.getElementById('mini-progress');
@@ -753,30 +826,38 @@
                 const miniPacing = document.getElementById('mini-pacing');
                 if (miniPacing && data.factors) miniPacing.innerText = `${(data.factors.trend_multiplier || 1).toFixed(2)}x Pace`;
                 const miniStockouts = document.getElementById('mini-stockouts');
-                if (miniStockouts) miniStockouts.innerText = `${criticalCount} Stockouts`;
+                if (miniStockouts) miniStockouts.innerText = criticalCount > 0 ? `${criticalCount} Stockouts (-${totalShortage}u)` : '0 Stockouts';
+
+                lastUpdatedTime = new Date();
+                updateLastUpdatedDisplay();
 
                 renderHeader();
                 filterTable();
 
             } catch (err) {
                 console.error('Forecast generation error:', err);
-                const tbody = document.getElementById('prediction-table-body');
-                if (tbody) {
-                    tbody.innerHTML = `
-                        <tr>
-                            <td colspan="8" class="text-center py-5 text-danger">
-                                <i class="bi bi-exclamation-triangle fs-1 d-block mb-2 text-danger"></i>
-                                <div class="fw-bold fs-6 mb-1">Failed to generate forecast</div>
-                                <div class="text-muted small mb-3">${err.message || 'Server timeout or connection issue.'}</div>
-                                <button class="btn btn-sm btn-primary" onclick="generatePrediction(true)">
-                                    <i class="bi bi-arrow-clockwise me-1"></i>Try Again
-                                </button>
-                            </td>
-                        </tr>
-                    `;
+                if (lastUpdatedText) lastUpdatedText.innerText = 'Sync paused';
+                if (!isBackground) {
+                    const tbody = document.getElementById('prediction-table-body');
+                    if (tbody) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="9" class="text-center py-5 text-danger">
+                                    <i class="bi bi-exclamation-triangle fs-1 d-block mb-2 text-danger"></i>
+                                    <div class="fw-bold fs-6 mb-1">Failed to generate forecast</div>
+                                    <div class="text-muted small mb-3">${err.message || 'Server timeout or connection issue.'}</div>
+                                    <button class="btn btn-sm btn-primary" onclick="generatePrediction(true)">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Try Again
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    }
+                    alert(`Error generating prediction: ${err.message || 'Please check connection and try again.'}`);
                 }
-                alert(`Error generating prediction: ${err.message || 'Please check connection and try again.'}`);
             } finally {
+                isRefreshing = false;
+                if (quickIcon) quickIcon.classList.remove('spin-animation');
                 document.getElementById('loading-overlay').classList.add('d-none');
             }
         }
@@ -829,6 +910,7 @@
                     <th>Predicted Remainder</th>
                     <th>Total Expected</th>
                     <th>All Available Stock</th>
+                    <th class="text-center" style="min-width: 140px;" title="Difference between available network stock and predicted remaining demand">Shortage / Buffer</th>
                     <th>Runout Status</th>
                 </tr>
             `;
@@ -839,7 +921,7 @@
             if (!tbody) return;
 
             const visibleDays = getVisibleDays();
-            const colSpan = 7 + visibleDays.length;
+            const colSpan = 8 + visibleDays.length;
 
             if (!items || items.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center py-5 text-muted"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No matching items found.</td></tr>`;
@@ -953,6 +1035,41 @@
                     `;
                 }
 
+                // Shortage & Buffer computation
+                const shortage = (item.shortage_units !== undefined) ? item.shortage_units : Math.max(0, item.predicted_remainder - inv.total);
+                const surplus = (item.surplus_units !== undefined) ? item.surplus_units : Math.max(0, inv.total - item.predicted_remainder);
+
+                let balanceHtml = '';
+                if (shortage > 0) {
+                    balanceHtml = `
+                        <div class="d-flex flex-column align-items-center">
+                            <span class="badge bg-danger text-white border border-danger px-2.5 py-1 fs-6 fw-bold shadow-sm" title="Shortage Alert: Total network stock (${inv.total}) falls short of remaining demand (${item.predicted_remainder}) by ${shortage} units!">
+                                <i class="bi bi-dash-circle-fill me-1"></i>Short ${shortage}
+                            </span>
+                            <span class="text-danger fw-semibold mt-1" style="font-size: 0.68rem; white-space: nowrap;">
+                                ${inv.total} stock vs ${item.predicted_remainder} exp
+                            </span>
+                        </div>
+                    `;
+                } else {
+                    const bufferLabel = surplus > 0 ? `+${surplus} Buffer` : `0 Balanced`;
+                    let boothNote = '';
+                    if (item.today_transfer_needed > 0) {
+                        boothNote = `<span class="badge bg-warning text-dark border border-warning-subtle mt-1" style="font-size: 0.63rem; white-space: nowrap;" title="Network has stock (+${surplus}), but Big E booth needs ${item.today_transfer_needed} transferred today!"><i class="bi bi-box-arrow-up-right me-0.5"></i>Booth short ${item.today_transfer_needed}</span>`;
+                    }
+                    balanceHtml = `
+                        <div class="d-flex flex-column align-items-center">
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fs-6 fw-semibold" title="Total stock (${inv.total}) covers remaining demand (${item.predicted_remainder}) with a buffer of ${surplus} units.">
+                                <i class="bi bi-check-circle-fill me-1"></i>${bufferLabel}
+                            </span>
+                            <span class="text-muted mt-1" style="font-size: 0.68rem; white-space: nowrap;">
+                                ${inv.total} stock vs ${item.predicted_remainder} exp
+                            </span>
+                            ${boothNote}
+                        </div>
+                    `;
+                }
+
                 html += `
                     <tr>
                         <td>
@@ -988,6 +1105,7 @@
                                 <span class="text-muted" style="font-size: 0.70rem; white-space: nowrap;">Booth: <strong class="${inv.bige < (item.today_expected || 0) ? 'text-danger' : 'text-dark'}">${inv.bige}</strong> | House: ${inv.warehouse} | Car: ${inv.car}</span>
                             </div>
                         </td>
+                        <td class="text-center">${balanceHtml}</td>
                         <td style="white-space: nowrap;">${statusBadge}</td>
                     </tr>
                 `;
@@ -1004,6 +1122,9 @@
                 let matchStatus = true;
                 if (statusFilter === 'SURGING') {
                     matchStatus = (item.trend_status === 'SURGING' || item.trend_status === 'TRENDING_UP' || item.trend_status === 'NEW_HOT');
+                } else if (statusFilter === 'SHORTAGE') {
+                    const shortage = (item.shortage_units !== undefined) ? item.shortage_units : Math.max(0, item.predicted_remainder - ((item.inventory && item.inventory.total) || 0));
+                    matchStatus = (shortage > 0);
                 } else if (statusFilter === 'TRANSFER_TODAY') {
                     matchStatus = (item.today_transfer_needed > 0);
                 } else if (statusFilter === 'CRITICAL_STOCKOUT') {
@@ -1026,6 +1147,7 @@
                 togglePanels(false);
             }
             generatePrediction();
+            startAutoRefresh();
         });
     </script>
 </body>

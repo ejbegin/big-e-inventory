@@ -157,8 +157,8 @@
                 </div>
 
                 <!-- Submit Button -->
-                <button type="button" id="submit-transfer-btn" class="btn btn-primary btn-lg w-100 fw-bold shadow" onclick="executeTransfer()" disabled>
-                    <i class="bi bi-check-circle-fill me-2"></i>Execute Transfer
+                <button type="button" id="submit-transfer-btn" class="btn btn-primary btn-lg w-100 fw-bold shadow" onclick="promptConfirmationModal()" disabled>
+                    <i class="bi bi-check-circle-fill me-2"></i>Review & Transfer
                 </button>
             </div>
         </div>
@@ -389,6 +389,36 @@
             submitBtn.disabled = false;
         }
 
+        function promptConfirmationModal() {
+            const fromId = document.getElementById('from_location').value;
+            const toId = document.getElementById('to_location').value;
+            const itemId = document.getElementById('item').value;
+            const mode = document.querySelector('input[name="transferMode"]:checked').value;
+            const qty = parseInt(document.getElementById('transfer-qty').value) || 0;
+
+            if (!fromId || !toId || !itemId || qty <= 0) {
+                showAlert("Please select item, source location, target location, and valid quantity.", "warning");
+                return;
+            }
+
+            const caseSize = (itemId && settings[itemId] && settings[itemId].case_size) ? settings[itemId].case_size : 12;
+            const totalUnits = mode === 'cases' ? (qty * caseSize) : qty;
+
+            const fromLocObj = locations.find(l => l.id === fromId);
+            const toLocObj = locations.find(l => l.id === toId);
+            const selectElem = document.getElementById('item');
+            const itemName = selectElem ? selectElem.options[selectElem.selectedIndex].text : itemId;
+
+            document.getElementById('confirm-from-name').textContent = fromLocObj ? fromLocObj.name : 'Source Location';
+            document.getElementById('confirm-to-name').textContent = toLocObj ? toLocObj.name : 'Target Location';
+            document.getElementById('confirm-item-name').textContent = itemName;
+            document.getElementById('confirm-qty-display').textContent = mode === 'cases' ? `${qty} case(s) (${totalUnits} total units)` : `${qty} unit(s)`;
+            document.getElementById('confirm-modal-alert').innerHTML = '';
+
+            const modal = new bootstrap.Modal(document.getElementById('confirmationModal'));
+            modal.show();
+        }
+
         async function executeTransfer() {
             const fromId = document.getElementById('from_location').value;
             const toId = document.getElementById('to_location').value;
@@ -409,7 +439,14 @@
 
             const summaryText = `Transferred ${totalUnits} units (${mode === 'cases' ? qty + ' case(s)' : qty + ' unit(s)'}) of ${itemName} from ${fromName} to ${toName}`;
 
-            showLoading(true);
+            const confirmBtn = document.getElementById('confirmTransferBtn');
+            const cancelBtn = document.getElementById('cancelConfirmBtn');
+            const modalAlert = document.getElementById('confirm-modal-alert');
+            
+            confirmBtn.disabled = true;
+            if (cancelBtn) cancelBtn.disabled = true;
+            confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Transferring to Square...';
+
             try {
                 const res = await fetch('/api/inventory/transfer', {
                     method: 'POST',
@@ -428,18 +465,27 @@
 
                 const data = await res.json();
                 if (res.ok) {
+                    const modalElem = document.getElementById('confirmationModal');
+                    const modalInstance = bootstrap.Modal.getInstance(modalElem);
+                    if (modalInstance) modalInstance.hide();
+
                     showAlert(`Successfully transferred ${totalUnits} units to ${toName}.`, "success");
                     await fetchInventory();
                     onSelectionChange();
                     fetchHistory();
                 } else {
-                    showAlert("Transfer Error: " + (data.error || "Failed to execute transfer"), "danger");
+                    const errDetail = data.error || "Failed to execute transfer";
+                    modalAlert.innerHTML = `<div class="alert alert-danger py-2 small mb-0"><i class="bi bi-exclamation-triangle-fill me-1"></i>${errDetail}</div>`;
+                    showAlert("Transfer Error: " + errDetail, "danger");
                 }
             } catch (err) {
-                showAlert("Request failed.", "danger");
+                modalAlert.innerHTML = `<div class="alert alert-danger py-2 small mb-0"><i class="bi bi-exclamation-triangle-fill me-1"></i>Network request failed.</div>`;
+                showAlert("Request failed: " + err.message, "danger");
                 console.error(err);
             } finally {
-                showLoading(false);
+                confirmBtn.disabled = false;
+                if (cancelBtn) cancelBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>Confirm & Transfer';
             }
         }
 
@@ -527,6 +573,52 @@
 
         init();
     </script>
+    <!-- Transfer Confirmation Modal -->
+    <div class="modal fade" id="confirmationModal" tabindex="-1" aria-labelledby="confirmationModalLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="confirmationModalLabel">
+                        <i class="bi bi-shield-check me-2"></i>Confirm Manual Transfer
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="d-flex align-items-center justify-content-between p-3 mb-3 bg-light rounded-3 border">
+                        <div>
+                            <div class="text-muted small">From</div>
+                            <div class="fw-bold" id="confirm-from-name">Source</div>
+                        </div>
+                        <div class="text-center px-2">
+                            <i class="bi bi-arrow-right fs-4 text-primary"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">To</div>
+                            <div class="fw-bold" id="confirm-to-name">Destination</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted small mb-1">Item to Transfer</label>
+                        <div class="p-2 border rounded bg-white fw-bold fs-6" id="confirm-item-name">Item Name</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted small mb-1">Quantity</label>
+                        <div class="p-2 border rounded bg-white text-primary fw-bold fs-5" id="confirm-qty-display">1 case (12 units)</div>
+                    </div>
+
+                    <div id="confirm-modal-alert"></div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary px-4 fw-semibold" data-bs-dismiss="modal" id="cancelConfirmBtn">Cancel</button>
+                    <button type="button" class="btn btn-primary px-4 fw-bold shadow-sm" id="confirmTransferBtn" onclick="executeTransfer()">
+                        <i class="bi bi-check-circle-fill me-2"></i>Confirm & Transfer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -211,6 +211,84 @@
         </div>
     </div>
 
+    <!-- Transfer Confirmation Modal -->
+    <div class="modal fade" id="confirmationModal" tabindex="-1" aria-labelledby="confirmationModalLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold" id="confirmationModalLabel">
+                        <i class="bi bi-shield-check me-2"></i>Confirm Transfer to Big E
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" id="closeConfirmModalBtn"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="d-flex align-items-center justify-content-between p-3 mb-3 bg-light rounded-3 border">
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-secondary p-2 me-2"><i class="bi bi-truck fs-5"></i></span>
+                            <div>
+                                <div class="text-muted small">Source</div>
+                                <div class="fw-bold" id="confirm-from-name">Car</div>
+                            </div>
+                        </div>
+                        <div class="text-center px-2">
+                            <i class="bi bi-arrow-right fs-3 text-success"></i>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-success p-2 me-2"><img src="/static/bige_icon.svg" width="22" height="22" alt="Big E"></span>
+                            <div>
+                                <div class="text-muted small">Destination</div>
+                                <div class="fw-bold" id="confirm-to-name">Big E Booth</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3 text-center">
+                        <div class="col-4">
+                            <div class="p-2 border rounded bg-white shadow-sm">
+                                <div class="text-muted small">Items</div>
+                                <div class="fs-5 fw-bold text-dark" id="confirm-item-count">0</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 border rounded bg-white shadow-sm">
+                                <div class="text-muted small">Total Cases</div>
+                                <div class="fs-5 fw-bold text-primary" id="confirm-case-count">0</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 border rounded bg-white shadow-sm">
+                                <div class="text-muted small">Total Units</div>
+                                <div class="fs-5 fw-bold text-success" id="confirm-unit-count">0</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive border rounded" style="max-height: 280px; overflow-y: auto;">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Item</th>
+                                    <th class="text-center" style="width: 110px;">Cases</th>
+                                    <th class="text-end" style="width: 120px;">Total Units</th>
+                                </tr>
+                            </thead>
+                            <tbody id="confirm-items-tbody">
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="confirm-modal-alert" class="mt-3"></div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary px-4 fw-semibold" data-bs-dismiss="modal" id="cancelConfirmBtn">Cancel</button>
+                    <button type="button" class="btn btn-success px-4 fw-bold shadow-sm" id="confirmTransferBtn" onclick="confirmAndExecuteTransfer()">
+                        <i class="bi bi-check-circle-fill me-2"></i>Confirm & Transfer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let locations = [];
         let items = [];
@@ -425,7 +503,7 @@
                 const parLevelUnits = parLevel * caseSize;
                 const bigETotal = inv[bigEId] ? inv[bigEId].total : 0;
                 
-                // Planner logic: Calculate suggested transfer
+                // Planner logic: Calculate suggested transfer (for display reference only)
                 let suggestedQty = 0;
                 if (parLevelUnits > 0 && bigETotal < parLevelUnits) {
                     const neededUnits = parLevelUnits - bigETotal;
@@ -433,9 +511,10 @@
                     suggestedQty = Math.min(neededCases, carInv.cases + (carInv.remainder > 0 ? 1 : 0));
                 }
                 
-                transferState[id] = { transfer_qty: suggestedQty, caseSize: caseSize, itemName: name };
+                // Do NOT auto populate transfers - start at 0 so nothing is transferred accidentally
+                transferState[id] = { transfer_qty: 0, caseSize: caseSize, itemName: name, suggested_qty: suggestedQty };
 
-                const parStr = parLevel > 0 ? `<div class="par-level-badge">Par: ${parLevel}</div>` : '';
+                const parStr = parLevel > 0 ? `<div class="par-level-badge">Par: ${parLevel}${suggestedQty > 0 ? ` <span class="text-primary fw-semibold">&bull; Needs ${suggestedQty}c</span>` : ''}</div>` : '';
 
                 card.innerHTML = `
                     <div class="one-line-layout">
@@ -456,7 +535,7 @@
                             
                             <!-- Transfer Indicator -->
                             <div class="tally-pill">
-                                <span class="tally-count ${suggestedQty > 0 ? 'active' : ''}" id="tally-${id}">${suggestedQty}</span>
+                                <span class="tally-count" id="tally-${id}">0</span>
                                 <div class="transfer-arrow-icon"><i class="bi bi-arrow-right"></i></div>
                             </div>
 
@@ -559,88 +638,151 @@
 
         function updateSubmitButtons() {
             let hasTransfers = false;
+            let totalCases = 0;
             for (const id in transferState) {
                 if (transferState[id].transfer_qty > 0) {
                     hasTransfers = true;
-                    break;
+                    totalCases += transferState[id].transfer_qty;
                 }
             }
             
             document.querySelectorAll('.submit-btn').forEach(btn => {
                 btn.disabled = !hasTransfers;
+                btn.innerText = hasTransfers ? `Submit Transfers to Big E (${totalCases} case${totalCases === 1 ? '' : 's'})` : 'Submit Transfers to Big E';
             });
         }
 
-        async function submitAllTransfers() {
+        function submitAllTransfers() {
             if (!carId || !bigEId) {
                 showAlert("Location error: Car or Big E location not found.", "danger");
                 return;
             }
 
-            const transfersToMake = [];
+            const staged = [];
             let totalCases = 0;
+            let totalUnits = 0;
 
             for (const id in transferState) {
                 const qtyCases = transferState[id].transfer_qty;
                 if (qtyCases > 0) {
                     const caseSize = transferState[id].caseSize || 12;
-                    const totalUnits = qtyCases * caseSize;
-                    transfersToMake.push({
+                    const units = qtyCases * caseSize;
+                    staged.push({
                         catalog_object_id: id,
                         caseQty: qtyCases,
-                        units: totalUnits,
+                        units: units,
                         itemName: transferState[id].itemName
                     });
                     totalCases += qtyCases;
+                    totalUnits += units;
                 }
             }
 
-            if (transfersToMake.length === 0) return;
+            if (staged.length === 0) {
+                showAlert("No cases selected to transfer. Tap the Big E icon next to an item to stage cases for transfer.", "warning");
+                return;
+            }
+
+            // Populate confirmation modal
+            document.getElementById('confirm-item-count').innerText = staged.length;
+            document.getElementById('confirm-case-count').innerText = totalCases;
+            document.getElementById('confirm-unit-count').innerText = totalUnits;
+            document.getElementById('confirm-modal-alert').innerHTML = '';
+
+            const tbody = document.getElementById('confirm-items-tbody');
+            tbody.innerHTML = staged.map(item => `
+                <tr>
+                    <td class="fw-semibold">${item.itemName}</td>
+                    <td class="text-center"><span class="badge bg-primary fs-6 px-2 py-1">${item.caseQty} c</span></td>
+                    <td class="text-end text-muted fw-bold">${item.units} units</td>
+                </tr>
+            `).join('');
+
+            window.stagedTransfersToExecute = staged;
+
+            const modal = new bootstrap.Modal(document.getElementById('confirmationModal'));
+            modal.show();
+        }
+
+        async function confirmAndExecuteTransfer() {
+            const staged = window.stagedTransfersToExecute;
+            if (!staged || staged.length === 0) return;
+
+            const confirmBtn = document.getElementById('confirmTransferBtn');
+            const cancelBtn = document.getElementById('cancelConfirmBtn');
+            const closeBtn = document.getElementById('closeConfirmModalBtn');
+            const modalAlert = document.getElementById('confirm-modal-alert');
+            
+            confirmBtn.disabled = true;
+            cancelBtn.disabled = true;
+            if (closeBtn) closeBtn.disabled = true;
+            confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Transferring to Square...';
 
             const submitBtns = document.querySelectorAll('.submit-btn');
-            submitBtns.forEach(btn => { btn.disabled = true; btn.innerText = "Submitting..."; });
+            submitBtns.forEach(btn => {
+                btn.disabled = true;
+                btn.innerText = "Processing transfer...";
+            });
 
             const batchId = 'batch-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-            let successCount = 0;
-            let errors = [];
+            const totalCases = staged.reduce((acc, cur) => acc + cur.caseQty, 0);
+            const totalUnits = staged.reduce((acc, cur) => acc + cur.units, 0);
 
-            for (const item of transfersToMake) {
-                const summaryText = `Transferred ${item.caseQty} case(s) (${item.units} units) of ${item.itemName} from Car to Big E`;
-                try {
-                    const res = await fetch('/api/inventory/transfer', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
+            try {
+                const res = await fetch('/api/inventory/batch_transfer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        batch_id: batchId,
+                        transfers: staged.map(item => ({
                             from_location_id: carId,
                             to_location_id: bigEId,
                             catalog_object_id: item.catalog_object_id,
                             quantity: item.units,
-                            batch_id: batchId,
                             item_name: item.itemName,
                             from_location_name: "Car",
                             to_location_name: "Big E",
-                            summary: summaryText
-                        })
-                    });
-                    
-                    const data = await res.json();
-                    if (res.ok) {
-                        successCount++;
-                    } else {
-                        errors.push(`${item.itemName}: ${data.error || 'Failed'}`);
-                    }
-                } catch (err) {
-                    errors.push(`${item.itemName}: Network error`);
+                            summary: `Transferred ${item.caseQty} case(s) (${item.units} units) of ${item.itemName} from Car to Big E`
+                        }))
+                    })
+                });
+
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.error || 'Failed to execute batch transfer');
                 }
-            }
 
-            if (errors.length === 0) {
-                showAlert(`Successfully transferred ${totalCases} case(s) to Big E!`, "success");
-            } else {
-                showAlert(`Transferred ${successCount} item(s). Errors: ${errors.join(', ')}`, "warning");
-            }
+                // Hide modal safely
+                const modalElem = document.getElementById('confirmationModal');
+                const modalInstance = bootstrap.Modal.getInstance(modalElem);
+                if (modalInstance) modalInstance.hide();
 
-            await init();
+                showAlert(`Successfully transferred ${totalCases} case(s) (${totalUnits} units) across ${staged.length} item(s) to Big E!`, "success");
+
+                // Reset staged transfer quantities
+                for (const id in transferState) {
+                    transferState[id].transfer_qty = 0;
+                }
+                document.querySelectorAll('.tally-count').forEach(t => {
+                    t.innerText = '0';
+                    t.classList.remove('active');
+                });
+                window.stagedTransfersToExecute = [];
+
+                // Refresh inventory counts and history
+                await init();
+                await fetchHistory();
+            } catch (err) {
+                console.error("Batch transfer error:", err);
+                modalAlert.innerHTML = `<div class="alert alert-danger py-2 small mb-0"><i class="bi bi-exclamation-triangle-fill me-1"></i>${err.message}</div>`;
+                showAlert("Transfer error: " + err.message, "danger");
+            } finally {
+                confirmBtn.disabled = false;
+                cancelBtn.disabled = false;
+                if (closeBtn) closeBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>Confirm & Transfer';
+                updateSubmitButtons();
+            }
         }
 
         async function fetchHistory() {

@@ -819,6 +819,156 @@ def transfer_inventory():
             error_msg = e.body['errors']
         return jsonify({'error': error_msg}), 500
 
+@app.route('/api/inventory/batch_transfer', methods=['POST'])
+def batch_transfer_inventory():
+    data = request.json or {}
+    transfers = data.get('transfers', [])
+    if not transfers:
+        return jsonify({'error': 'No transfers provided'}), 400
+
+    batch_id = data.get('batch_id') or ('batch-' + str(int(datetime.datetime.now().timestamp() * 1000)))
+    now_str = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    valid_transfers = []
+    for item in transfers:
+        from_loc = item.get('from_location_id')
+        to_loc = item.get('to_location_id')
+        cat_id = item.get('catalog_object_id')
+        qty = item.get('quantity')
+        if not all([from_loc, to_loc, cat_id, qty]):
+            continue
+        try:
+            qty_int = int(qty)
+            if qty_int <= 0:
+                continue
+        except (ValueError, TypeError):
+            continue
+
+        item_name = item.get('item_name') or cat_id
+        from_name = item.get('from_location_name') or 'Location'
+        to_name = item.get('to_location_name') or 'Location'
+        summary = item.get('summary') or f"Transferred {qty_int} units of {item_name} from {from_name} to {to_name}"
+
+        valid_transfers.append({
+            'from_location_id': from_loc,
+            'to_location_id': to_loc,
+            'catalog_object_id': cat_id,
+            'quantity': qty_int,
+            'item_name': item_name,
+            'from_location_name': from_name,
+            'to_location_name': to_name,
+            'summary': summary
+        })
+
+    if not valid_transfers:
+        return jsonify({'error': 'No valid transfer items provided'}), 400
+
+    # Verify inventory counts before executing
+    try:
+        cat_ids = list({t['catalog_object_id'] for t in valid_transfers})
+        from_loc_ids = list({t['from_location_id'] for t in valid_transfers})
+        counts_res = client.inventory.deprecated_batch_get_counts(
+            catalog_object_ids=cat_ids,
+            location_ids=from_loc_ids,
+            states=['IN_STOCK']
+        )
+        counts_list = counts_res.dict().get('counts', [])
+        stock_map = {}
+        for c in counts_list:
+            key = (c.get('catalog_object_id'), c.get('location_id'))
+            stock_map[key] = stock_map.get(key, 0) + int(c.get('quantity', 0))
+
+        requested_totals = {}
+        for t in valid_transfers:
+            key = (t['catalog_object_id'], t['from_location_id'])
+            requested_totals[key] = requested_totals.get(key, 0) + t['quantity']
+
+        for key, req_qty in requested_totals.items():
+            avail = stock_map.get(key, 0)
+            if avail < req_qty:
+                item_name = next((t['item_name'] for t in valid_transfers if (t['catalog_object_id'], t['from_location_id']) == key), key[0])
+                loc_name = next((t['from_location_name'] for t in valid_transfers if (t['catalog_object_id'], t['from_location_id']) == key), 'Source')
+                return jsonify({'error': f'Insufficient inventory in {loc_name} for {item_name}: requested {req_qty}, available {avail}'}), 400
+    except Exception as e:
+        print(f"Warning during batch transfer stock balance pre-check: {e}")
+
+    # Square allows up to 100 changes per batch call. Each transfer requires 2 adjustment changes.
+    chunk_size = 40
+    history_entries = []
+
+    try:
+        for i in range(0, len(valid_transfers), chunk_size):
+            chunk = valid_transfers[i:i + chunk_size]
+            changes = []
+            for t in chunk:
+                # Deduct from source
+                changes.append({
+                    "type": "ADJUSTMENT",
+                    "adjustment": {
+                        "from_state": "IN_STOCK",
+                        "to_state": "NONE",
+                        "from_location_id": t['from_location_id'],
+                        "to_location_id": t['from_location_id'],
+                        "catalog_object_id": t['catalog_object_id'],
+                        "quantity": str(t['quantity']),
+                        "occurred_at": now_str
+                    }
+                })
+                # Add to destination
+                changes.append({
+                    "type": "ADJUSTMENT",
+                    "adjustment": {
+                        "from_state": "NONE",
+                        "to_state": "IN_STOCK",
+                        "from_location_id": t['to_location_id'],
+                        "to_location_id": t['to_location_id'],
+                        "catalog_object_id": t['catalog_object_id'],
+                        "quantity": str(t['quantity']),
+                        "occurred_at": now_str
+                    }
+                })
+
+            res = client.inventory.batch_create_changes(
+                idempotency_key=str(uuid.uuid4()),
+                changes=changes
+            )
+            res_dict = res.dict()
+            if res_dict.get('errors'):
+                return jsonify({'error': f"Square transfer error: {res_dict['errors']}"}), 400
+
+            for t in chunk:
+                history_entries.append({
+                    "id": str(uuid.uuid4()),
+                    "batch_id": batch_id,
+                    "timestamp": now_str,
+                    "from_location_id": t['from_location_id'],
+                    "to_location_id": t['to_location_id'],
+                    "from_location_name": t['from_location_name'],
+                    "to_location_name": t['to_location_name'],
+                    "catalog_object_id": t['catalog_object_id'],
+                    "item_name": t['item_name'],
+                    "quantity": t['quantity'],
+                    "summary": t['summary'],
+                    "status": "completed",
+                    "reverted_at": None
+                })
+
+        history = load_history()
+        history.extend(history_entries)
+        save_history(history)
+
+        return jsonify({
+            'status': 'success',
+            'batch_id': batch_id,
+            'count': len(history_entries),
+            'message': f"Successfully transferred {len(history_entries)} item(s)."
+        })
+    except Exception as e:
+        error_msg = str(e)
+        if hasattr(e, 'body') and isinstance(e.body, dict) and 'errors' in e.body:
+            error_msg = e.body['errors']
+        return jsonify({'error': str(error_msg)}), 500
+
 REDIRECTS_FILE = os.path.join(DATA_DIR, 'redirects.json')
 
 def clean_url(url: str) -> str:
@@ -2133,6 +2283,11 @@ def prediction_data():
         stand_inv = item_stock['stand']
         wh_inv = item_stock['warehouse']
 
+        # Shortage and surplus calculations (expected remainder vs total available network stock)
+        net_balance = total_inv - predicted_remaining
+        shortage_units = max(0, predicted_remaining - total_inv)
+        surplus_units = max(0, total_inv - predicted_remaining)
+
         # Status determination
         if predicted_remaining > 0:
             if total_inv < predicted_remaining:
@@ -2158,6 +2313,9 @@ def prediction_data():
             'today_expected': today_expected,
             'today_remaining_expected': today_remaining_expected,
             'today_transfer_needed': today_transfer_needed,
+            'net_balance': net_balance,
+            'shortage_units': shortage_units,
+            'surplus_units': surplus_units,
             'momentum_multiplier': round(momentum_multiplier, 2),
             'trend_status': trend_status,
             'pace_pct': pace_pct_str,
@@ -2171,10 +2329,11 @@ def prediction_data():
             'status': status
         })
 
-    # Sort items: Priority given to items needing transfer TODAY, followed by critical stockout, surging items, and remaining volume
+    # Sort items: Priority given to items needing transfer TODAY, followed by critical stockout (sorted by shortage severity), surging items, and remaining volume
     predictions.sort(key=lambda x: (
         x['today_transfer_needed'] > 0,
         x['status'] == 'CRITICAL_STOCKOUT',
+        x['shortage_units'],
         x['trend_status'] in ['SURGING', 'NEW_HOT'],
         x['today_transfer_needed'],
         x['predicted_remainder']
@@ -2191,6 +2350,8 @@ def prediction_data():
     total_today_expected_units = sum(p['today_expected'] for p in predictions)
     surging_count = sum(1 for p in predictions if p['trend_status'] in ['SURGING', 'NEW_HOT'])
     trending_up_count = sum(1 for p in predictions if p['trend_status'] == 'TRENDING_UP')
+    critical_stockout_items = sum(1 for p in predictions if p['status'] == 'CRITICAL_STOCKOUT')
+    total_shortage_units = sum(p['shortage_units'] for p in predictions if p['shortage_units'] > 0)
 
     return jsonify({
         'weather': {
@@ -2210,6 +2371,10 @@ def prediction_data():
             'expected_units': total_today_expected_units,
             'transfer_units': total_today_transfer_units,
             'transfer_items': total_today_transfer_items
+        },
+        'stockout_summary': {
+            'critical_items': critical_stockout_items,
+            'total_shortage_units': total_shortage_units
         },
         'factors': {
             'awareness_growth': awareness_growth,
