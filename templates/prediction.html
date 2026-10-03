@@ -249,6 +249,67 @@
             word-break: break-word;
         }
 
+        /* Sortable Column Headers */
+        .sortable-th {
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.15s ease, color 0.15s ease;
+            white-space: nowrap;
+        }
+        .sortable-th:hover {
+            background-color: rgba(13, 110, 253, 0.08) !important;
+            color: #0d6efd !important;
+        }
+        .sortable-th i.bi {
+            transition: all 0.15s ease;
+        }
+        .sort-icon-active {
+            color: #0d6efd !important;
+            font-size: 0.82rem;
+            font-weight: bold;
+        }
+        .sort-icon-inactive {
+            color: #aaa;
+            font-size: 0.72rem;
+            opacity: 0.5;
+        }
+        .sortable-th:hover .sort-icon-inactive {
+            color: #0d6efd;
+            opacity: 0.9;
+        }
+
+        /* Category Filter Pills */
+        .category-pill {
+            font-size: 0.76rem;
+            padding: 3px 9px;
+            border-radius: 20px;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            border: 1px solid transparent;
+            line-height: 1.3;
+        }
+        .category-pill.active {
+            background: #e7f1ff;
+            color: #0d6efd;
+            border-color: #b6d4fe;
+            font-weight: 600;
+        }
+        .category-pill.inactive {
+            background: #f8f9fa;
+            color: #8c98a4;
+            border-color: #dee2e6;
+            text-decoration: line-through;
+            opacity: 0.75;
+        }
+        .category-pill:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
         /* Mobile & iPhone Landscape Optimizations */
         @media (max-width: 991px), (max-height: 520px) {
             .table-custom td {
@@ -494,11 +555,12 @@
         <div class="row">
             <div class="col-12">
                 <div class="glass-card p-3 p-sm-4">
-                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-                        <div class="d-flex align-items-center gap-2">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+                        <div class="d-flex align-items-center flex-wrap gap-2">
                             <h5 class="fw-bold mb-0">Item Demand &amp; Stock Availability</h5>
                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="active-days-badge" style="font-size: 0.75rem;"></span>
                             <span class="badge bg-danger-subtle text-danger border border-danger-subtle shadow-sm" id="surging-header-badge" style="font-size: 0.75rem; cursor: pointer; display: none;" onclick="filterSurgingItems()" title="Click to filter surging items"></span>
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" id="items-count-badge" style="font-size: 0.75rem;"></span>
                         </div>
                         <div class="d-flex flex-wrap gap-2 align-items-center">
                             <!-- Day Columns View Mode Toggle -->
@@ -511,10 +573,39 @@
                                 </button>
                             </div>
 
-                            <input type="text" class="form-control form-control-sm filter-search-box" id="table-search" placeholder="Search item..." onkeyup="filterTable()" style="max-width: 150px;">
+                            <input type="text" class="form-control form-control-sm filter-search-box" id="table-search" placeholder="Search item..." onkeyup="filterTable()" style="max-width: 140px;">
                             
-                            <select class="form-select form-select-sm" id="status-filter" style="width: 185px;" onchange="filterTable()">
-                                <option value="ALL">All Items</option>
+                            <!-- Category Filter Dropdown -->
+                            <div class="dropdown" id="category-dropdown-wrapper">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle shadow-sm d-flex align-items-center gap-1.5" type="button" id="btn-category-dropdown" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Filter items by category">
+                                    <i class="bi bi-tags"></i>
+                                    <span id="category-filter-btn-text">Categories (All)</span>
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-end p-2 shadow-lg" aria-labelledby="btn-category-dropdown" style="min-width: 260px; border-radius: 12px; z-index: 1060;">
+                                    <div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom px-1">
+                                        <span class="fw-bold small text-uppercase text-muted" style="font-size: 0.72rem; letter-spacing: 0.5px;">Filter Categories</span>
+                                        <div class="d-flex gap-1">
+                                            <button type="button" class="btn btn-link btn-xs text-decoration-none p-0 text-primary fw-semibold" style="font-size: 0.75rem;" onclick="selectAllCategories(true)">All</button>
+                                            <span class="text-muted" style="font-size: 0.75rem;">|</span>
+                                            <button type="button" class="btn btn-link btn-xs text-decoration-none p-0 text-muted" style="font-size: 0.75rem;" onclick="selectAllCategories(false)">None</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Quick Exclusion Button for Fidgets & Merch -->
+                                    <div class="mb-2 px-1">
+                                        <button type="button" class="btn btn-xs btn-outline-danger w-100 py-1.5 d-flex align-items-center justify-content-center gap-1.5 fw-semibold" style="font-size: 0.78rem;" onclick="toggleExcludeFidgetsMerch()" id="btn-quick-exclude-fm" title="Click to hide or show Fidgets and Merch">
+                                            <i class="bi bi-eye-slash"></i> Remove Fidgets &amp; Merch
+                                        </button>
+                                    </div>
+
+                                    <div id="category-checkboxes-list" style="max-height: 240px; overflow-y: auto;">
+                                        <!-- Checkboxes dynamically rendered -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <select class="form-select form-select-sm shadow-sm" id="status-filter" style="width: 170px;" onchange="filterTable()">
+                                <option value="ALL">All Statuses</option>
                                 <option value="SHORTAGE">🚨 Shortage Only</option>
                                 <option value="SURGING">🔥 Surging</option>
                                 <option value="TRANSFER_TODAY">⚡ Transfer Today</option>
@@ -522,7 +613,16 @@
                                 <option value="TRANSFER_NEEDED">⚠️ Need Transfer</option>
                                 <option value="SAFE">✅ Safe</option>
                             </select>
+
+                            <button class="btn btn-sm btn-outline-primary shadow-sm" id="btn-reset-sort" onclick="resetSort()" title="Reset column sorting to smart priority ranking" style="display: none;">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i><span>Default Sort</span>
+                            </button>
                         </div>
+                    </div>
+
+                    <!-- Category Pills Bar (Quick Interactive Badges) -->
+                    <div class="d-flex flex-wrap align-items-center gap-1.5 mb-3 pt-2 border-top border-light-subtle" id="category-pills-bar">
+                        <!-- Populated dynamically -->
                     </div>
 
                     <div class="table-responsive">
@@ -530,6 +630,7 @@
                             <thead id="prediction-table-header">
                                 <tr class="text-muted small text-uppercase">
                                     <th>Item Name</th>
+                                    <th>Category</th>
                                     <th>Multi-Yr Baseline</th>
                                     <th>2026 Actuals</th>
                                     <th>Predicted Remainder</th>
@@ -541,7 +642,7 @@
                             </thead>
                             <tbody id="prediction-table-body">
                                 <tr>
-                                    <td colspan="8" class="text-center py-5 text-muted">
+                                    <td colspan="10" class="text-center py-5 text-muted">
                                         <i class="bi bi-inbox fs-1 d-block mb-3"></i>
                                         Click "Run Forecast Model" to calculate predictions
                                     </td>
@@ -566,8 +667,249 @@
 
     <script>
         let allPredictions = [];
+        let allAvailableCategories = [];
+        let selectedCategories = new Set();
         let currentCalendar = null;
         let currentDaysView = 'remaining'; // 'remaining' or 'all'
+        let currentSortKey = null; // null = smart default priority sort
+        let currentSortDir = 'desc';
+
+        function renderCategoryFilters() {
+            const listEl = document.getElementById('category-checkboxes-list');
+            const pillsBar = document.getElementById('category-pills-bar');
+            if (!listEl) return;
+
+            // Count items per category
+            const catCounts = {};
+            for (const cat of allAvailableCategories) {
+                catCounts[cat] = 0;
+            }
+            for (const item of allPredictions) {
+                const itemCats = item.categories || [item.category];
+                for (const c of itemCats) {
+                    if (catCounts[c] !== undefined) catCounts[c]++;
+                }
+            }
+
+            // 1. Render Dropdown Checkboxes
+            let checkHtml = '';
+            for (const cat of allAvailableCategories) {
+                const isChecked = selectedCategories.has(cat);
+                const count = catCounts[cat] || 0;
+                const safeId = 'cat-check-' + cat.replace(/[^a-zA-Z0-9]/g, '-');
+                checkHtml += `
+                    <div class="form-check px-1 py-1 ms-3">
+                        <input class="form-check-input" type="checkbox" value="${cat}" id="${safeId}" ${isChecked ? 'checked' : ''} onchange="toggleCategory('${cat.replace(/'/g, "\\'")}', this.checked)">
+                        <label class="form-check-label d-flex justify-content-between align-items-center w-100 pe-2 small" for="${safeId}" style="cursor: pointer;">
+                            <span>${cat}</span>
+                            <span class="badge bg-light text-muted border ms-2">${count}</span>
+                        </label>
+                    </div>
+                `;
+            }
+            listEl.innerHTML = checkHtml;
+
+            // 2. Render Category Pills Bar
+            if (pillsBar) {
+                let pillsHtml = `<span class="text-muted small fw-semibold me-1"><i class="bi bi-funnel me-1"></i>Categories:</span>`;
+                
+                // "All" button
+                const allActive = selectedCategories.size === allAvailableCategories.length;
+                pillsHtml += `
+                    <button type="button" class="btn btn-xs category-pill ${allActive ? 'active' : 'inactive'}" onclick="selectAllCategories(true)" title="Show all categories">
+                        All (${allPredictions.length})
+                    </button>
+                `;
+
+                // Quick toggle button for Fidgets & Merch
+                const hasFidgetsOrMerch = selectedCategories.has('Fidgets') || selectedCategories.has('Merch');
+                pillsHtml += `
+                    <button type="button" class="btn btn-xs category-pill ${!hasFidgetsOrMerch ? 'active bg-danger-subtle text-danger border-danger-subtle fw-bold' : 'inactive'}" onclick="toggleExcludeFidgetsMerch()" title="${hasFidgetsOrMerch ? 'Click to remove Fidgets and Merch' : 'Click to re-include Fidgets and Merch'}">
+                        <i class="bi ${hasFidgetsOrMerch ? 'bi-eye-slash' : 'bi-check2'} me-1"></i>${hasFidgetsOrMerch ? 'Remove Fidgets & Merch' : 'Fidgets & Merch Removed'}
+                    </button>
+                `;
+
+                for (const cat of allAvailableCategories) {
+                    const isSel = selectedCategories.has(cat);
+                    const count = catCounts[cat] || 0;
+                    pillsHtml += `
+                        <button type="button" class="btn btn-xs category-pill ${isSel ? 'active' : 'inactive'}" onclick="toggleCategory('${cat.replace(/'/g, "\\'")}', ${!isSel})" title="Click to ${isSel ? 'hide' : 'show'} ${cat}">
+                            ${cat} <span class="badge ${isSel ? 'bg-primary text-white' : 'bg-secondary text-white'} ms-1" style="font-size:0.65rem;">${count}</span>
+                            <i class="bi ${isSel ? 'bi-x' : 'bi-plus'} ms-0.5"></i>
+                        </button>
+                    `;
+                }
+                pillsBar.innerHTML = pillsHtml;
+            }
+
+            // Update Dropdown Button Text
+            updateCategoryButtonLabel();
+        }
+
+        function updateCategoryButtonLabel() {
+            const btnText = document.getElementById('category-filter-btn-text');
+            if (!btnText) return;
+
+            const total = allAvailableCategories.length;
+            const selected = selectedCategories.size;
+
+            const isFidgetsExcluded = !selectedCategories.has('Fidgets') && !selectedCategories.has('Merch');
+            const isOtherAllIncluded = allAvailableCategories.filter(c => c !== 'Fidgets' && c !== 'Merch').every(c => selectedCategories.has(c));
+
+            if (selected === total) {
+                btnText.innerText = 'Categories (All)';
+            } else if (isFidgetsExcluded && isOtherAllIncluded) {
+                btnText.innerText = 'Categories (No Fidgets/Merch)';
+            } else if (selected === 0) {
+                btnText.innerText = 'Categories (None)';
+            } else if (selected === 1) {
+                const onlyCat = Array.from(selectedCategories)[0];
+                btnText.innerText = `Category: ${onlyCat}`;
+            } else {
+                btnText.innerText = `Categories (${selected}/${total})`;
+            }
+
+            const quickBtn = document.getElementById('btn-quick-exclude-fm');
+            if (quickBtn) {
+                const hasFM = selectedCategories.has('Fidgets') || selectedCategories.has('Merch');
+                quickBtn.innerHTML = hasFM ? '<i class="bi bi-eye-slash"></i> Remove Fidgets &amp; Merch' : '<i class="bi bi-eye"></i> Include Fidgets &amp; Merch';
+                quickBtn.className = hasFM ? 'btn btn-xs btn-outline-danger w-100 py-1.5 d-flex align-items-center justify-content-center gap-1.5 fw-semibold' : 'btn btn-xs btn-outline-success w-100 py-1.5 d-flex align-items-center justify-content-center gap-1.5 fw-semibold';
+            }
+        }
+
+        function toggleCategory(cat, makeActive) {
+            if (makeActive) {
+                selectedCategories.add(cat);
+            } else {
+                selectedCategories.delete(cat);
+            }
+            renderCategoryFilters();
+            filterTable();
+        }
+
+        function selectAllCategories(selectAll) {
+            if (selectAll) {
+                selectedCategories = new Set(allAvailableCategories);
+            } else {
+                selectedCategories = new Set();
+            }
+            renderCategoryFilters();
+            filterTable();
+        }
+
+        function toggleExcludeFidgetsMerch() {
+            const hasFM = selectedCategories.has('Fidgets') || selectedCategories.has('Merch');
+            if (hasFM) {
+                selectedCategories.delete('Fidgets');
+                selectedCategories.delete('Merch');
+            } else {
+                selectedCategories.add('Fidgets');
+                selectedCategories.add('Merch');
+            }
+            renderCategoryFilters();
+            filterTable();
+        }
+
+        function getSortIcon(col) {
+            if (currentSortKey !== col) {
+                return '<i class="bi bi-arrow-down-up sort-icon-inactive ms-1"></i>';
+            }
+            return currentSortDir === 'asc' 
+                ? '<i class="bi bi-sort-up sort-icon-active ms-1"></i>' 
+                : '<i class="bi bi-sort-down sort-icon-active ms-1"></i>';
+        }
+
+        function handleSort(key) {
+            if (currentSortKey === key) {
+                currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortKey = key;
+                if (key === 'name' || key === 'category') {
+                    currentSortDir = 'asc';
+                } else if (key === 'net_balance') {
+                    currentSortDir = 'asc'; // Shortages (negative net balance) first
+                } else {
+                    currentSortDir = 'desc';
+                }
+            }
+
+            const resetBtn = document.getElementById('btn-reset-sort');
+            if (resetBtn) resetBtn.style.display = 'inline-block';
+
+            renderHeader();
+            filterTable();
+        }
+
+        function resetSort() {
+            currentSortKey = null;
+            currentSortDir = 'desc';
+            const resetBtn = document.getElementById('btn-reset-sort');
+            if (resetBtn) resetBtn.style.display = 'none';
+            renderHeader();
+            filterTable();
+        }
+
+        function sortItems(items) {
+            if (!currentSortKey) return items;
+
+            return [...items].sort((a, b) => {
+                let valA, valB;
+
+                if (currentSortKey === 'name') {
+                    valA = (a.name || '').toLowerCase();
+                    valB = (b.name || '').toLowerCase();
+                    return currentSortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                }
+                
+                if (currentSortKey === 'category') {
+                    valA = (a.category || '').toLowerCase();
+                    valB = (b.category || '').toLowerCase();
+                    return currentSortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                }
+
+                if (currentSortKey === 'baseline') {
+                    valA = typeof a.baseline_multi_year === 'number' ? a.baseline_multi_year : (parseFloat(String(a.baseline_multi_year).replace(/[^0-9.]/g, '')) || 0);
+                    valB = typeof b.baseline_multi_year === 'number' ? b.baseline_multi_year : (parseFloat(String(b.baseline_multi_year).replace(/[^0-9.]/g, '')) || 0);
+                } else if (currentSortKey === 'actuals') {
+                    valA = Number(a.actuals) || 0;
+                    valB = Number(b.actuals) || 0;
+                } else if (currentSortKey.startsWith('day_')) {
+                    const date = currentSortKey.replace('day_', '');
+                    const dayA = a.daily_breakdown && a.daily_breakdown[date];
+                    const dayB = b.daily_breakdown && b.daily_breakdown[date];
+                    valA = dayA ? (Number(dayA.expected) || Number(dayA.actual) || 0) : 0;
+                    valB = dayB ? (Number(dayB.expected) || Number(dayB.actual) || 0) : 0;
+                } else if (currentSortKey === 'predicted_remainder') {
+                    valA = Number(a.predicted_remainder) || 0;
+                    valB = Number(b.predicted_remainder) || 0;
+                } else if (currentSortKey === 'required_total') {
+                    valA = Number(a.required_total) || 0;
+                    valB = Number(b.required_total) || 0;
+                } else if (currentSortKey === 'inventory_total') {
+                    valA = Number(a.inventory && a.inventory.total) || 0;
+                    valB = Number(b.inventory && b.inventory.total) || 0;
+                } else if (currentSortKey === 'net_balance') {
+                    valA = a.net_balance != null ? Number(a.net_balance) : ((Number(a.inventory && a.inventory.total) || 0) - (Number(a.predicted_remainder) || 0));
+                    valB = b.net_balance != null ? Number(b.net_balance) : ((Number(b.inventory && b.inventory.total) || 0) - (Number(b.predicted_remainder) || 0));
+                } else if (currentSortKey === 'status') {
+                    const statusOrder = {
+                        'CRITICAL_STOCKOUT': 4,
+                        'TRANSFER_NEEDED': 3,
+                        'SAFE': 2,
+                        'STABLE': 1
+                    };
+                    valA = statusOrder[a.status] || 0;
+                    valB = statusOrder[b.status] || 0;
+                } else {
+                    valA = a[currentSortKey] || 0;
+                    valB = b[currentSortKey] || 0;
+                }
+
+                if (valA < valB) return currentSortDir === 'asc' ? -1 : 1;
+                if (valA > valB) return currentSortDir === 'asc' ? 1 : -1;
+                return (a.name || '').localeCompare(b.name || '');
+            });
+        }
 
         function setDaysView(mode) {
             currentDaysView = mode;
@@ -733,6 +1075,26 @@
                 allPredictions = data.predictions || [];
                 currentCalendar = data.calendar || null;
 
+                // Sync categories from response or predictions
+                if (data.categories && data.categories.length > 0) {
+                    allAvailableCategories = data.categories;
+                } else {
+                    allAvailableCategories = Array.from(new Set(allPredictions.map(p => p.category).filter(Boolean))).sort();
+                }
+
+                // Initialize or preserve selected categories
+                if (selectedCategories.size === 0) {
+                    selectedCategories = new Set(allAvailableCategories);
+                } else {
+                    const validSelected = new Set();
+                    for (const c of selectedCategories) {
+                        if (allAvailableCategories.includes(c)) validSelected.add(c);
+                    }
+                    selectedCategories = validSelected.size > 0 ? validSelected : new Set(allAvailableCategories);
+                }
+
+                renderCategoryFilters();
+
                 // Update Insights safely
                 const temp = data.weather && data.weather.avg_temp_f != null ? data.weather.avg_temp_f.toFixed(1) : '--';
                 const weatherMult = data.weather && data.weather.multiplier != null ? data.weather.multiplier : 1.0;
@@ -876,25 +1238,29 @@
 
             let daysHeadersHtml = '';
             for (const d of visibleDays) {
+                const dayKey = 'day_' + d.date;
+                const isDaySorted = currentSortKey === dayKey;
+                const activeHeaderClass = isDaySorted ? 'border-primary' : '';
+
                 if (d.is_today) {
                     daysHeadersHtml += `
-                        <th class="text-center today-col-header" style="min-width: 110px;">
+                        <th class="text-center today-col-header sortable-th ${activeHeaderClass}" onclick="handleSort('${dayKey}')" style="min-width: 110px;" title="Click to sort by today's (${d.formatted}) expected demand">
                             <span class="badge bg-primary text-white text-uppercase px-2 py-0.5" style="font-size:0.62rem; letter-spacing:0.5px;">Today</span>
-                            <div class="fw-bold text-primary mt-1" style="font-size:0.85rem;">${d.formatted}</div>
+                            <div class="fw-bold text-primary mt-1" style="font-size:0.85rem;">${d.formatted} ${getSortIcon(dayKey)}</div>
                             <div class="text-muted" style="font-size:0.68rem; font-weight:normal;">Expected / Transfer</div>
                         </th>
                     `;
                 } else if (d.is_remaining) {
                     daysHeadersHtml += `
-                        <th class="text-center" style="min-width: 80px;">
-                            <div class="fw-bold text-dark" style="font-size:0.85rem;">${d.formatted}</div>
+                        <th class="text-center sortable-th ${activeHeaderClass}" onclick="handleSort('${dayKey}')" style="min-width: 80px;" title="Click to sort by expected sales on ${d.formatted}">
+                            <div class="fw-bold text-dark" style="font-size:0.85rem;">${d.formatted} ${getSortIcon(dayKey)}</div>
                             <div class="text-muted" style="font-size:0.68rem; font-weight:normal;">Expected</div>
                         </th>
                     `;
                 } else {
                     daysHeadersHtml += `
-                        <th class="text-center text-muted" style="min-width: 80px; background: rgba(0,0,0,0.02);">
-                            <div class="fw-bold text-secondary" style="font-size:0.85rem;">${d.formatted}</div>
+                        <th class="text-center text-muted sortable-th ${activeHeaderClass}" onclick="handleSort('${dayKey}')" style="min-width: 80px; background: rgba(0,0,0,0.02);" title="Click to sort by actual sales on ${d.formatted}">
+                            <div class="fw-bold text-secondary" style="font-size:0.85rem;">${d.formatted} ${getSortIcon(dayKey)}</div>
                             <div class="text-muted" style="font-size:0.68rem; font-weight:normal;">Actual Sold</div>
                         </th>
                     `;
@@ -903,15 +1269,34 @@
 
             thead.innerHTML = `
                 <tr class="text-muted small text-uppercase">
-                    <th>Item Name</th>
-                    <th>Multi-Yr Baseline</th>
-                    <th>2026 Actuals</th>
+                    <th class="sortable-th" onclick="handleSort('name')" title="Click to sort alphabetically by Item Name">
+                        Item Name ${getSortIcon('name')}
+                    </th>
+                    <th class="sortable-th" onclick="handleSort('category')" title="Click to sort by Category">
+                        Category ${getSortIcon('category')}
+                    </th>
+                    <th class="sortable-th" onclick="handleSort('baseline')" title="Click to sort by Multi-Year Baseline">
+                        Multi-Yr Baseline ${getSortIcon('baseline')}
+                    </th>
+                    <th class="sortable-th" onclick="handleSort('actuals')" title="Click to sort by 2026 Actuals">
+                        2026 Actuals ${getSortIcon('actuals')}
+                    </th>
                     ${daysHeadersHtml}
-                    <th>Predicted Remainder</th>
-                    <th>Total Expected</th>
-                    <th>All Available Stock</th>
-                    <th class="text-center" style="min-width: 140px;" title="Difference between available network stock and predicted remaining demand">Shortage / Buffer</th>
-                    <th>Runout Status</th>
+                    <th class="sortable-th" onclick="handleSort('predicted_remainder')" title="Click to sort by Predicted Remainder">
+                        Predicted Remainder ${getSortIcon('predicted_remainder')}
+                    </th>
+                    <th class="sortable-th" onclick="handleSort('required_total')" title="Click to sort by Total Expected">
+                        Total Expected ${getSortIcon('required_total')}
+                    </th>
+                    <th class="sortable-th" onclick="handleSort('inventory_total')" title="Click to sort by Available Stock">
+                        All Available Stock ${getSortIcon('inventory_total')}
+                    </th>
+                    <th class="text-center sortable-th" onclick="handleSort('net_balance')" style="min-width: 140px;" title="Difference between available network stock and predicted remaining demand. Click to sort by Shortage / Buffer.">
+                        Shortage / Buffer ${getSortIcon('net_balance')}
+                    </th>
+                    <th class="sortable-th" onclick="handleSort('status')" title="Click to sort by Runout Status">
+                        Runout Status ${getSortIcon('status')}
+                    </th>
                 </tr>
             `;
         }
@@ -921,7 +1306,7 @@
             if (!tbody) return;
 
             const visibleDays = getVisibleDays();
-            const colSpan = 8 + visibleDays.length;
+            const colSpan = 9 + visibleDays.length;
 
             if (!items || items.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center py-5 text-muted"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No matching items found.</td></tr>`;
@@ -1081,6 +1466,11 @@
                                 </div>
                             </div>
                         </td>
+                        <td>
+                            <span class="badge bg-light text-secondary border px-2 py-1" style="font-weight: 500; font-size: 0.76rem;">
+                                ${item.category || 'General'}
+                            </span>
+                        </td>
                         <td><span class="badge bg-light text-dark border px-2 py-1">${item.baseline_multi_year}</span></td>
                         <td><span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-2 py-1">${item.actuals}</span></td>
                         ${dailyCellsHtml}
@@ -1118,7 +1508,19 @@
             const statusFilter = document.getElementById('status-filter').value;
 
             const filtered = allPredictions.filter(item => {
-                const matchQuery = !query || item.name.toLowerCase().includes(query);
+                const matchQuery = !query || 
+                    item.name.toLowerCase().includes(query) || 
+                    (item.category && item.category.toLowerCase().includes(query));
+
+                // Category filter check
+                let matchCategory = true;
+                if (selectedCategories.size > 0) {
+                    const itemCats = item.categories || [item.category];
+                    matchCategory = itemCats.some(c => selectedCategories.has(c));
+                } else {
+                    matchCategory = false; // None selected
+                }
+
                 let matchStatus = true;
                 if (statusFilter === 'SURGING') {
                     matchStatus = (item.trend_status === 'SURGING' || item.trend_status === 'TRENDING_UP' || item.trend_status === 'NEW_HOT');
@@ -1134,10 +1536,22 @@
                 } else if (statusFilter === 'SAFE') {
                     matchStatus = (item.status === 'SAFE');
                 }
-                return matchQuery && matchStatus;
+
+                return matchQuery && matchCategory && matchStatus;
             });
 
-            renderTable(filtered);
+            // Update item count badge
+            const countBadge = document.getElementById('items-count-badge');
+            if (countBadge) {
+                if (filtered.length === allPredictions.length) {
+                    countBadge.innerText = `${filtered.length} Items`;
+                } else {
+                    countBadge.innerText = `Showing ${filtered.length} of ${allPredictions.length} Items`;
+                }
+            }
+
+            const sorted = sortItems(filtered);
+            renderTable(sorted);
         }
 
         // Auto-run on page load
@@ -1150,5 +1564,6 @@
             startAutoRefresh();
         });
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

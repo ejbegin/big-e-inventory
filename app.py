@@ -1964,7 +1964,27 @@ def prediction_data():
 
     # 6. Catalog Items & Prediction Generation
     catalog = get_cached_catalog()
-    catalog_items = [o for o in catalog.get('objects', []) if o.get('type') == 'ITEM']
+    catalog_objects = catalog.get('objects', [])
+    cat_map = {o['id']: o.get('category_data', {}) for o in catalog_objects if o.get('type') == 'CATEGORY'}
+    
+    # Identify Big E parent category and all its descendant categories
+    big_e_cat_ids = set()
+    for cid, cdata in cat_map.items():
+        cname = (cdata.get('name') or '').strip().lower()
+        if cname == 'big e' or cid == '44DHFMKH636YWQBB4AGMVFLV':
+            big_e_cat_ids.add(cid)
+            
+    bige_all_category_ids = set(big_e_cat_ids)
+    changed = True
+    while changed:
+        changed = False
+        for cid, cdata in cat_map.items():
+            parent_id = (cdata.get('parent_category') or {}).get('id')
+            if parent_id in bige_all_category_ids and cid not in bige_all_category_ids:
+                bige_all_category_ids.add(cid)
+                changed = True
+
+    catalog_items = [o for o in catalog_objects if o.get('type') == 'ITEM']
     
     irrelevant_keywords = ['membership', 'box', 'gift set', 'cutting board', 'spoons', 'soap', 'eggs']
 
@@ -1979,6 +1999,32 @@ def prediction_data():
         # Filter out non-event items (e.g. memberships, gift baskets)
         if any(irr in name.lower() for irr in irrelevant_keywords):
             continue
+
+        # Extract item category IDs
+        item_cat_ids = []
+        if item_data.get('category_id'):
+            item_cat_ids.append(item_data['category_id'])
+        for c in item_data.get('categories', []):
+            cid = c.get('id') if isinstance(c, dict) else c
+            if cid and cid not in item_cat_ids:
+                item_cat_ids.append(cid)
+
+        # Focus strictly on items in the Big E Parent Category or its subcategories
+        if big_e_cat_ids:
+            item_bige_cat_ids = [cid for cid in item_cat_ids if cid in bige_all_category_ids]
+            if not item_bige_cat_ids:
+                continue
+        else:
+            item_bige_cat_ids = item_cat_ids
+
+        # Determine subcategory name (e.g. Jams & Jellies, Fidgets, Merch, Hot Sauce & Pickles, Honey, etc.)
+        subcat_names = [cat_map[cid].get('name', 'General') for cid in item_bige_cat_ids if cid not in big_e_cat_ids]
+        if subcat_names:
+            primary_category = subcat_names[0]
+            category_list = subcat_names
+        else:
+            primary_category = 'Big E'
+            category_list = ['Big E']
             
         norm_name = normalize_item_name(name)
         variations = item_data.get('variations', [])
@@ -2301,6 +2347,8 @@ def prediction_data():
 
         predictions.append({
             'name': name,
+            'category': primary_category,
+            'categories': category_list,
             'is_new_item': is_new_item,
             'curr_price': curr_price,
             'hist_price': hist_price,
@@ -2352,6 +2400,7 @@ def prediction_data():
     trending_up_count = sum(1 for p in predictions if p['trend_status'] == 'TRENDING_UP')
     critical_stockout_items = sum(1 for p in predictions if p['status'] == 'CRITICAL_STOCKOUT')
     total_shortage_units = sum(p['shortage_units'] for p in predictions if p['shortage_units'] > 0)
+    all_categories = sorted(list(set(c for p in predictions for c in p.get('categories', [p.get('category', 'General')]))))
 
     return jsonify({
         'weather': {
@@ -2385,6 +2434,7 @@ def prediction_data():
             'surging_count': surging_count,
             'trending_up_count': trending_up_count
         },
+        'categories': all_categories,
         'predictions': predictions
     })
 
