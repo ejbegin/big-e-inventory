@@ -223,13 +223,36 @@
         .timeline-dot {
             position: absolute;
             left: -24px;
-            top: 4px;
-            width: 12px;
-            height: 12px;
+            top: 10px;
+            width: 14px;
+            height: 14px;
             border-radius: 50%;
             background: #0d6efd;
             border: 2px solid #fff;
             box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.2);
+            z-index: 2;
+        }
+        .timeline-card {
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 12px 14px;
+            background: #ffffff;
+            transition: all 0.2s ease;
+        }
+        .timeline-point.timeline-highlight-warning .timeline-card {
+            background: #fffdf5;
+            border: 1.5px solid #f59e0b !important;
+            box-shadow: 0 3px 12px rgba(245, 158, 11, 0.15);
+        }
+        .timeline-point.timeline-highlight-danger .timeline-card {
+            background: #fff5f5;
+            border: 1.5px solid #ef4444 !important;
+            box-shadow: 0 3px 12px rgba(239, 68, 68, 0.15);
+        }
+        .timeline-point.timeline-highlight-success .timeline-card {
+            background: #f0fdf4;
+            border: 1.5px solid #22c55e !important;
+            box-shadow: 0 3px 12px rgba(34, 197, 94, 0.15);
         }
 
         .spin-animation { animation: spin 0.8s linear infinite; display: inline-block; }
@@ -387,9 +410,10 @@
                 </div>
                 <div class="col-12 col-md-7 d-flex gap-1 flex-wrap justify-content-md-end">
                     <button class="btn btn-sm btn-outline-dark active" id="btn-filter-all" onclick="setIssueFilter('all')">All (<span id="count-all">0</span>)</button>
-                    <button class="btn btn-sm btn-outline-danger" id="btn-filter-waste" onclick="setIssueFilter('waste')"><i class="bi bi-trash3 me-1"></i>Waste/Loss (<span id="count-waste">0</span>)</button>
-                    <button class="btn btn-sm btn-outline-purple" id="btn-filter-recounted" onclick="setIssueFilter('recounted')" style="border-color:#6f42c1; color:#6f42c1;"><i class="bi bi-arrow-repeat me-1"></i>Recounted (<span id="count-recounted">0</span>)</button>
-                    <button class="btn btn-sm btn-outline-warning text-dark" id="btn-filter-mismatch" onclick="setIssueFilter('mismatch')"><i class="bi bi-exclamation-triangle me-1"></i>Mismatches (<span id="count-mismatch">0</span>)</button>
+                    <button class="btn btn-sm btn-outline-danger" id="btn-filter-down" onclick="setIssueFilter('down')"><i class="bi bi-arrow-down-circle me-1"></i>Recount Down (<span id="count-down">0</span>)</button>
+                    <button class="btn btn-sm btn-outline-success" id="btn-filter-up" onclick="setIssueFilter('up')"><i class="bi bi-arrow-up-circle me-1"></i>Recount Up (<span id="count-up">0</span>)</button>
+                    <button class="btn btn-sm btn-outline-warning text-dark" id="btn-filter-restock" onclick="setIssueFilter('restock')"><i class="bi bi-box-arrow-in-down me-1"></i>Direct Restock (<span id="count-restock">0</span>)</button>
+                    <button class="btn btn-sm btn-outline-secondary" id="btn-filter-mismatch" onclick="setIssueFilter('mismatch')"><i class="bi bi-exclamation-triangle me-1"></i>Mismatches (<span id="count-mismatch">0</span>)</button>
                 </div>
             </div>
         </div>
@@ -424,16 +448,16 @@
                 </div>
             </div>
 
-            <!-- Waste / Shrinkage KPI -->
+            <!-- Recount Adjustments KPI -->
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="kpi-card">
                     <div class="kpi-icon bg-danger-subtle text-danger">
-                        <i class="bi bi-shield-x"></i>
+                        <i class="bi bi-sliders"></i>
                     </div>
                     <div>
-                        <div class="text-secondary small fw-bold text-uppercase">Waste / Shrinkage</div>
-                        <h3 class="h4 fw-bold mb-0 text-danger" id="kpi-waste">0 units</h3>
-                        <div class="text-muted small" id="kpi-waste-items">0 items affected</div>
+                        <div class="text-secondary small fw-bold text-uppercase">Recount Adjustments</div>
+                        <h3 class="h4 fw-bold mb-0 text-danger" id="kpi-recount-down">-0 units</h3>
+                        <div class="text-muted small" id="kpi-recount-up">+0 units found</div>
                     </div>
                 </div>
             </div>
@@ -447,7 +471,7 @@
                     <div>
                         <div class="text-secondary small fw-bold text-uppercase">Physical Recounts</div>
                         <h3 class="h4 fw-bold mb-0" style="color: #6f42c1;" id="kpi-recounts">0 events</h3>
-                        <div class="text-muted small" id="kpi-recounts-items">Manual POS overrides</div>
+                        <div class="text-muted small" id="kpi-recounts-items">Manual POS count events</div>
                     </div>
                 </div>
             </div>
@@ -499,8 +523,8 @@
                             <th class="sortable-th text-center" onclick="sortTable('net_transfers')">
                                 Net Trans <span class="sort-indicator" id="sort-net_transfers"><i class="bi bi-arrow-down-up"></i></span>
                             </th>
-                            <th class="sortable-th text-center" onclick="sortTable('waste')" title="Items recorded as damaged, lost, or spoiled">
-                                Waste/Loss <span class="sort-indicator" id="sort-waste"><i class="bi bi-arrow-down-up"></i></span>
+                            <th class="sortable-th text-center" onclick="sortTable('recount_net')" title="Difference adjusted during manual recounts (missing vs found)">
+                                Recount &Delta; <span class="sort-indicator" id="sort-recount_net"><i class="bi bi-arrow-down-up"></i></span>
                             </th>
                             <th class="sortable-th text-center" onclick="sortTable('recounts')" title="Manual inventory recounts entered in Square">
                                 Recounts <span class="sort-indicator" id="sort-recounts"><i class="bi bi-arrow-down-up"></i></span>
@@ -541,7 +565,16 @@
                         <!-- Populated by JS -->
                     </div>
 
-                    <h6 class="fw-bold mb-3"><i class="bi bi-clock-history text-primary me-2"></i>Audit Event Timeline</h6>
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-clock-history text-primary me-2"></i>Audit Event Timeline</h6>
+                        <div class="btn-group btn-group-sm" role="group" id="modal-event-filters">
+                            <button type="button" class="btn btn-outline-secondary active" data-filter="all" onclick="filterModalTimeline('all', this)">All</button>
+                            <button type="button" class="btn btn-outline-warning text-dark" data-filter="highlight" onclick="filterModalTimeline('highlight', this)"><i class="bi bi-star-fill text-warning me-1"></i>Flagged</button>
+                            <button type="button" class="btn btn-outline-primary" data-filter="transfers" onclick="filterModalTimeline('transfers', this)">Transfers</button>
+                            <button type="button" class="btn btn-outline-danger" data-filter="recounts" onclick="filterModalTimeline('recounts', this)">Recounts</button>
+                            <button type="button" class="btn btn-outline-success" data-filter="sales" onclick="filterModalTimeline('sales', this)">Sales</button>
+                        </div>
+                    </div>
                     <div class="timeline-container" id="timeline-events-list">
                         <!-- Populated by JS -->
                     </div>
@@ -604,7 +637,7 @@
 
         function setIssueFilter(filter) {
             issueFilter = filter;
-            ['all', 'waste', 'recounted', 'mismatch'].forEach(f => {
+            ['all', 'down', 'up', 'restock', 'mismatch'].forEach(f => {
                 const btn = document.getElementById('btn-filter-' + f);
                 if (btn) {
                     if (f === filter) btn.classList.add('active');
@@ -698,8 +731,9 @@
                 }
 
                 // Issue Filter
-                if (issueFilter === 'waste' && item.waste_loss <= 0) return false;
-                if (issueFilter === 'recounted' && item.recount_count <= 0) return false;
+                if (issueFilter === 'down' && item.recount_down <= 0) return false;
+                if (issueFilter === 'up' && item.recount_up <= 0) return false;
+                if (issueFilter === 'restock' && (!item.direct_restocks || item.direct_restocks <= 0)) return false;
                 if (issueFilter === 'mismatch' && item.status !== 'TRANSFER_MISMATCH') return false;
 
                 return true;
@@ -707,13 +741,15 @@
 
             // Update Counts in UI
             const allCount = currentData.items.filter(i => (includeAllStore || i.is_bige)).length;
-            const wasteCount = currentData.items.filter(i => (includeAllStore || i.is_bige) && i.waste_loss > 0).length;
-            const recountCount = currentData.items.filter(i => (includeAllStore || i.is_bige) && i.recount_count > 0).length;
+            const downCount = currentData.items.filter(i => (includeAllStore || i.is_bige) && i.recount_down > 0).length;
+            const upCount = currentData.items.filter(i => (includeAllStore || i.is_bige) && i.recount_up > 0).length;
+            const restockCount = currentData.items.filter(i => (includeAllStore || i.is_bige) && (i.direct_restocks > 0 || i.status === 'DIRECT_RESTOCK')).length;
             const mismatchCount = currentData.items.filter(i => (includeAllStore || i.is_bige) && i.status === 'TRANSFER_MISMATCH').length;
 
             document.getElementById('count-all').textContent = allCount;
-            document.getElementById('count-waste').textContent = wasteCount;
-            document.getElementById('count-recounted').textContent = recountCount;
+            document.getElementById('count-down').textContent = downCount;
+            document.getElementById('count-up').textContent = upCount;
+            document.getElementById('count-restock').textContent = restockCount;
             document.getElementById('count-mismatch').textContent = mismatchCount;
 
             // Sorting
@@ -729,7 +765,7 @@
                     case 'transfers_in': vA = a.transfers_in; vB = b.transfers_in; break;
                     case 'transfers_out': vA = a.transfers_out; vB = b.transfers_out; break;
                     case 'net_transfers': vA = a.net_transfers; vB = b.net_transfers; break;
-                    case 'waste': vA = a.waste_loss; vB = b.waste_loss; break;
+                    case 'recount_net': vA = a.recount_net; vB = b.recount_net; break;
                     case 'recounts': vA = a.recount_count; vB = b.recount_count; break;
                     case 'status': vA = a.status; vB = b.status; break;
                     default: vA = a.sales_qty; vB = b.sales_qty;
@@ -744,30 +780,30 @@
             let totalSalesRevenue = 0;
             let totalIn = 0;
             let totalOut = 0;
-            let totalWaste = 0;
+            let totalRecountDown = 0;
+            let totalRecountUp = 0;
             let totalRecounts = 0;
-            let wasteItemsSet = 0;
 
             filtered.forEach(i => {
                 totalSalesQty += i.sales_qty;
                 totalSalesRevenue += i.sales_amount;
                 totalIn += i.transfers_in;
                 totalOut += i.transfers_out;
-                totalWaste += i.waste_loss;
+                totalRecountDown += i.recount_down || 0;
+                totalRecountUp += i.recount_up || 0;
                 totalRecounts += i.recount_count;
-                if (i.waste_loss > 0) wasteItemsSet++;
             });
 
             document.getElementById('kpi-sales-qty').textContent = totalSalesQty.toLocaleString() + ' units';
             document.getElementById('kpi-sales-dollars').textContent = '$' + totalSalesRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' revenue';
-            
+
             const netTrans = totalIn - totalOut;
             document.getElementById('kpi-transfers').textContent = (netTrans > 0 ? '+' : '') + netTrans.toLocaleString() + ' units';
             document.getElementById('kpi-transfer-detail').textContent = `In: ${totalIn} | Out: ${totalOut}`;
-            
-            document.getElementById('kpi-waste').textContent = totalWaste.toLocaleString() + ' units';
-            document.getElementById('kpi-waste-items').textContent = `${wasteItemsSet} items recorded`;
-            
+
+            document.getElementById('kpi-recount-down').textContent = `-${totalRecountDown.toLocaleString()} units`;
+            document.getElementById('kpi-recount-up').textContent = `+${totalRecountUp.toLocaleString()} found at counts`;
+
             document.getElementById('kpi-recounts').textContent = totalRecounts.toLocaleString() + ' events';
             document.getElementById('display-count').textContent = `Showing ${filtered.length} of ${allCount} items`;
 
@@ -782,8 +818,16 @@
             filtered.forEach((item, idx) => {
                 // Status badge
                 let statusBadge = '<span class="badge-audit badge-balanced"><i class="bi bi-check-circle"></i> Balanced</span>';
-                if (item.status === 'SHRINKAGE') {
-                    statusBadge = `<span class="badge-audit badge-shrinkage" title="${item.waste_loss} units lost"><i class="bi bi-shield-x"></i> -${item.waste_loss} Waste</span>`;
+                if (item.status === 'DIRECT_RESTOCK' || (item.direct_restocks > 0 && item.recount_down === 0 && item.recount_up === 0)) {
+                    statusBadge = `<span class="badge-audit badge-mismatch" title="${item.direct_restocks} units received directly in Square (not transferred via app)"><i class="bi bi-box-arrow-in-down"></i> +${item.direct_restocks} Direct</span>`;
+                } else if (item.status === 'RECOUNT_ADJUSTED') {
+                    if (item.recount_down > 0) {
+                        statusBadge = `<span class="badge-audit badge-shrinkage" title="${item.recount_down} units missing at recount"><i class="bi bi-dash-circle"></i> -${item.recount_down} Recount</span>`;
+                    } else {
+                        statusBadge = `<span class="badge-audit badge-balanced" title="${item.recount_up} units found at recount"><i class="bi bi-plus-circle"></i> +${item.recount_up} Recount</span>`;
+                    }
+                } else if (item.status === 'SHRINKAGE') {
+                    statusBadge = `<span class="badge-audit badge-shrinkage" title="${item.waste_loss} damaged/lost"><i class="bi bi-shield-x"></i> -${item.waste_loss} Damaged</span>`;
                 } else if (item.status === 'TRANSFER_MISMATCH') {
                     statusBadge = `<span class="badge-audit badge-mismatch" title="In != Out"><i class="bi bi-exclamation-triangle"></i> Mismatch</span>`;
                 } else if (item.status === 'RECOUNTED') {
@@ -795,6 +839,16 @@
                 // Breakdown tooltip for live stock
                 const locStock = item.live_stock;
                 const locTooltip = `Big E: ${locStock.bige} | Car: ${locStock.car} | Warehouse: ${locStock.warehouse}`;
+
+                // Recount Delta HTML
+                let recountDeltaHtml = '<span class="text-muted opacity-50">0</span>';
+                if (item.recount_down > 0 && item.recount_up > 0) {
+                    recountDeltaHtml = `<span class="fw-bold" title="${item.recount_down} missing, ${item.recount_up} found"><span class="text-danger">-${item.recount_down}</span> / <span class="text-success">+${item.recount_up}</span></span>`;
+                } else if (item.recount_down > 0) {
+                    recountDeltaHtml = `<span class="text-danger fw-bold" title="${item.recount_down} units missing during manual recount">-${item.recount_down}</span>`;
+                } else if (item.recount_up > 0) {
+                    recountDeltaHtml = `<span class="text-success fw-bold" title="${item.recount_up} units found during manual recount">+${item.recount_up}</span>`;
+                }
 
                 rows += `
                     <tr>
@@ -823,11 +877,14 @@
                         <td class="text-center text-warning-emphasis">
                             ${item.transfers_out > 0 ? '-' + item.transfers_out : '0'}
                         </td>
-                        <td class="text-center fw-bold ${item.net_transfers > 0 ? 'text-primary' : (item.net_transfers < 0 ? 'text-warning-emphasis' : 'text-muted')}">
-                            ${item.net_transfers > 0 ? '+' + item.net_transfers : item.net_transfers}
+                        <td class="text-center">
+                            <div class="fw-bold ${item.net_transfers > 0 ? 'text-primary' : (item.net_transfers < 0 ? 'text-warning-emphasis' : 'text-muted')}">
+                                ${item.net_transfers > 0 ? '+' + item.net_transfers : item.net_transfers}
+                            </div>
+                            ${item.direct_restocks > 0 ? `<div class="mt-1"><span class="badge bg-warning text-dark border border-warning" title="${item.direct_restocks} units received directly in Square outside the transfer app" style="font-size:0.68rem; font-weight:700;">+${item.direct_restocks} direct</span></div>` : ''}
                         </td>
-                        <td class="text-center ${item.waste_loss > 0 ? 'text-danger fw-bold' : 'text-muted'}">
-                            ${item.waste_loss > 0 ? '-' + item.waste_loss : '0'}
+                        <td class="text-center">
+                            ${recountDeltaHtml}
                         </td>
                         <td class="text-center">
                             ${item.recount_count > 0 ? `<span class="badge bg-purple text-white rounded-pill px-2" style="background:#6f42c1;">${item.recount_count}</span>` : '<span class="text-muted opacity-50">-</span>'}
@@ -869,13 +926,27 @@
             renderTable();
         }
 
+        let currentModalItem = null;
+        let currentModalFilter = 'all';
+
         function openItemTimeline(variationId) {
             if (!currentData || !currentData.items) return;
             const item = currentData.items.find(i => i.variation_id === variationId);
             if (!item) return;
 
+            currentModalItem = item;
+            currentModalFilter = 'all';
+
             document.getElementById('modalTimelineTitle').textContent = item.name + ' (' + item.variation_name + ')';
             document.getElementById('modalTimelineSubtitle').textContent = `Category: ${item.category} | Live Stock: ${item.live_stock.current} (Big E: ${item.live_stock.bige}, Car: ${item.live_stock.car}, WH: ${item.live_stock.warehouse})`;
+
+            // Recount Delta formatting for KPI
+            let recountKpiHtml = '<span class="text-muted">0</span>';
+            if (item.recount_net < 0) {
+                recountKpiHtml = `<span class="text-danger fw-bold">${item.recount_net}</span>`;
+            } else if (item.recount_net > 0) {
+                recountKpiHtml = `<span class="text-success fw-bold">+${item.recount_net}</span>`;
+            }
 
             // Modal KPIs
             document.getElementById('modal-item-kpis').innerHTML = `
@@ -889,55 +960,109 @@
                 </div>
                 <div class="col-3">
                     <div class="small text-muted">Net Transfers</div>
-                    <div class="h5 fw-bold text-primary m-0">${item.net_transfers > 0 ? '+' : ''}${item.net_transfers}</div>
+                    <div class="h5 fw-bold text-primary m-0">${item.net_transfers > 0 ? '+' : ''}${item.net_transfers}${item.direct_restocks > 0 ? ` <span class="badge bg-warning text-dark fs-6" style="font-size:0.75rem!important;">+${item.direct_restocks} direct</span>` : ''}</div>
                 </div>
                 <div class="col-3">
-                    <div class="small text-muted">Waste / Loss</div>
-                    <div class="h5 fw-bold text-danger m-0">-${item.waste_loss}</div>
+                    <div class="small text-muted">Recount Delta</div>
+                    <div class="h5 fw-bold m-0">${recountKpiHtml}</div>
                 </div>
             `;
 
-            // Timeline events
+            // Reset modal filter buttons
+            document.querySelectorAll('#modal-event-filters button').forEach(b => b.classList.remove('active'));
+            const btnAll = document.querySelector('#modal-event-filters button[data-filter="all"]');
+            if (btnAll) btnAll.classList.add('active');
+
+            renderModalTimeline();
+            timelineModal.show();
+        }
+
+        function filterModalTimeline(filterType, btn) {
+            currentModalFilter = filterType;
+            document.querySelectorAll('#modal-event-filters button').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            renderModalTimeline();
+        }
+
+        function renderModalTimeline() {
+            if (!currentModalItem) return;
             const listEl = document.getElementById('timeline-events-list');
-            if (!item.timeline || item.timeline.length === 0) {
-                listEl.innerHTML = '<div class="text-muted text-center py-4">No events recorded during this date range.</div>';
-            } else {
-                let html = '';
-                item.timeline.forEach(ev => {
-                    let dotColor = '#0d6efd';
-                    if (ev.type === 'SALE') dotColor = '#198754';
-                    else if (ev.type === 'WASTE') dotColor = '#dc3545';
-                    else if (ev.type === 'PHYSICAL_COUNT') dotColor = '#6f42c1';
-                    else if (ev.type === 'TRANSFER_OUT') dotColor = '#ffc107';
+            const events = currentModalItem.timeline || [];
 
-                    let deltaBadge = '';
-                    if (ev.delta !== null && ev.delta !== undefined) {
-                        deltaBadge = `<span class="badge ${ev.delta > 0 ? 'bg-info text-dark' : 'bg-secondary'}">${ev.delta > 0 ? '+' : ''}${ev.delta} units</span>`;
-                    } else if (ev.count_value !== undefined) {
-                        deltaBadge = `<span class="badge bg-purple text-white" style="background:#6f42c1;">Set to ${ev.count_value}</span>`;
-                    }
+            const filtered = events.filter(ev => {
+                if (currentModalFilter === 'highlight') return ev.is_highlight === true;
+                if (currentModalFilter === 'transfers') return ev.type === 'TRANSFER_IN' || ev.type === 'TRANSFER_OUT' || ev.type === 'DIRECT_RESTOCK';
+                if (currentModalFilter === 'recounts') return (ev.type && ev.type.startsWith('RECOUNT')) || ev.type === 'PHYSICAL_COUNT';
+                if (currentModalFilter === 'sales') return ev.type === 'SALE';
+                return true;
+            });
 
-                    html += `
-                        <div class="timeline-point">
-                            <div class="timeline-dot" style="background: ${dotColor};"></div>
+            if (filtered.length === 0) {
+                listEl.innerHTML = '<div class="text-muted text-center py-4"><i class="bi bi-info-circle me-1"></i>No events found matching this filter.</div>';
+                return;
+            }
+
+            let html = '';
+            filtered.forEach(ev => {
+                let dotColor = '#0d6efd';
+                let highlightClass = '';
+                let highlightBadge = '';
+
+                if (ev.type === 'SALE') {
+                    dotColor = '#198754';
+                } else if (ev.type === 'RECOUNT_DOWN') {
+                    dotColor = '#dc3545';
+                    highlightClass = 'timeline-highlight-danger';
+                    highlightBadge = `<div class="mb-1"><span class="badge bg-danger text-white"><i class="bi bi-dash-circle-fill me-1"></i>Recount Shrinkage (-${Math.abs(ev.delta)})</span> <span class="badge bg-light text-danger border border-danger-subtle ms-1">Counted lower than expected</span></div>`;
+                } else if (ev.type === 'RECOUNT_UP') {
+                    dotColor = '#198754';
+                    highlightClass = 'timeline-highlight-success';
+                    highlightBadge = `<div class="mb-1"><span class="badge bg-success text-white"><i class="bi bi-plus-circle-fill me-1"></i>Recount Surplus (+${ev.delta})</span> <span class="badge bg-light text-success border border-success-subtle ms-1">Counted higher than expected</span></div>`;
+                } else if (ev.type === 'DIRECT_RESTOCK') {
+                    dotColor = '#f59e0b';
+                    highlightClass = 'timeline-highlight-warning';
+                    highlightBadge = `<div class="mb-1"><span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill me-1"></i>Direct Square Restock (+${ev.delta})</span> <span class="badge bg-light text-dark border ms-1">Directly received in Square (Not from App)</span></div>`;
+                } else if (ev.type === 'WASTE') {
+                    dotColor = '#dc3545';
+                    highlightClass = 'timeline-highlight-danger';
+                    highlightBadge = `<div class="mb-1"><span class="badge bg-danger text-white"><i class="bi bi-trash3-fill me-1"></i>Manual Damaged / Waste</span></div>`;
+                } else if (ev.type === 'PHYSICAL_COUNT') {
+                    dotColor = '#6f42c1';
+                } else if (ev.type === 'TRANSFER_OUT') {
+                    dotColor = '#ffc107';
+                } else if (ev.type === 'TRANSFER_IN') {
+                    dotColor = '#0dcaf0';
+                }
+
+                let deltaBadge = '';
+                if (ev.delta !== null && ev.delta !== undefined) {
+                    const badgeClass = ev.delta > 0 ? 'bg-primary-subtle text-primary border border-primary-subtle' : (ev.type.includes('DOWN') || ev.type === 'WASTE' ? 'bg-danger-subtle text-danger border border-danger-subtle' : 'bg-secondary-subtle text-secondary border');
+                    deltaBadge = `<span class="badge ${badgeClass} fs-6">${ev.delta > 0 ? '+' : ''}${ev.delta} units</span>`;
+                } else if (ev.count_value !== undefined) {
+                    deltaBadge = `<span class="badge bg-purple text-white fs-6" style="background:#6f42c1;">Set to ${ev.count_value}</span>`;
+                }
+
+                html += `
+                    <div class="timeline-point ${highlightClass}">
+                        <div class="timeline-dot" style="background: ${dotColor};"></div>
+                        <div class="timeline-card">
                             <div class="d-flex justify-content-between align-items-start gap-2">
-                                <div>
+                                <div class="flex-grow-1">
+                                    ${highlightBadge}
                                     <div class="fw-bold text-dark">${escapeHtml(ev.summary)}</div>
-                                    <div class="small text-muted">
+                                    <div class="small text-muted mt-1">
                                         <i class="bi bi-clock me-1"></i>${formatDateTime(ev.occurred_at)} &bull; 
-                                        <i class="bi bi-geo-alt me-1"></i>${escapeHtml(ev.location)} &bull; 
+                                        <i class="bi bi-geo-alt me-1"></i><strong>${escapeHtml(ev.location)}</strong> &bull; 
                                         Source: <span class="badge bg-light text-dark border">${escapeHtml(ev.source)}</span>
                                     </div>
                                 </div>
-                                <div>${deltaBadge}</div>
+                                <div class="text-end">${deltaBadge}</div>
                             </div>
                         </div>
-                    `;
-                });
-                listEl.innerHTML = html;
-            }
-
-            timelineModal.show();
+                    </div>
+                `;
+            });
+            listEl.innerHTML = html;
         }
 
         function formatDateTime(isoStr) {

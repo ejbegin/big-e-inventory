@@ -2635,6 +2635,8 @@ def api_audit_data():
         total_transfers_in = 0
         total_transfers_out = 0
         total_waste_loss = 0
+        total_recount_down = 0
+        total_recount_up = 0
         total_physical_recounts = 0
         issue_items_count = 0
 
@@ -2682,24 +2684,38 @@ def api_audit_data():
                 v_adjs = adjs_by_vid.get(vid, [])
 
                 if location_id != 'all':
-                    v_transfers_in = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'IN_STOCK' and a['adjustment'].get('to_location_id') == location_id)
-                    v_transfers_out = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('from_state') == 'IN_STOCK' and a['adjustment'].get('from_location_id') == location_id)
-                    v_waste = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'WASTE' and a['adjustment'].get('to_location_id') == location_id)
+                    # App Transfers IN: to_location_id == location_id and to_state == IN_STOCK and source == BigE_Inventory
+                    v_transfers_in = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'IN_STOCK' and a['adjustment'].get('to_location_id') == location_id and (a['adjustment'].get('source') or {}).get('name') == 'BigE_Inventory')
+                    # App Transfers OUT: from_location_id == location_id and from_state == IN_STOCK and source == BigE_Inventory
+                    v_transfers_out = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('from_state') == 'IN_STOCK' and a['adjustment'].get('from_location_id') == location_id and (a['adjustment'].get('source') or {}).get('name') == 'BigE_Inventory')
+                    # Direct Restocks in Square: NONE -> IN_STOCK at this location, source != BigE_Inventory, reason != RECOUNT
+                    v_direct_restocks = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('from_state') == 'NONE' and a['adjustment'].get('to_state') == 'IN_STOCK' and a['adjustment'].get('to_location_id') == location_id and (a['adjustment'].get('source') or {}).get('name') != 'BigE_Inventory' and (a['adjustment'].get('reason_id') or {}).get('type') != 'RECOUNT')
+                    # Recount adjustments down (Square files these as WASTE with reason RECOUNT)
+                    v_recount_down = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'WASTE' and a['adjustment'].get('to_location_id') == location_id and (a['adjustment'].get('reason_id') or {}).get('type') == 'RECOUNT')
+                    # Recount adjustments up (Square files these as NONE -> IN_STOCK with reason RECOUNT)
+                    v_recount_up = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('from_state') == 'NONE' and a['adjustment'].get('to_state') == 'IN_STOCK' and a['adjustment'].get('to_location_id') == location_id and (a['adjustment'].get('reason_id') or {}).get('type') == 'RECOUNT')
+                    # Actual manual waste (reason != RECOUNT)
+                    v_waste = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'WASTE' and a['adjustment'].get('to_location_id') == location_id and (a['adjustment'].get('reason_id') or {}).get('type') != 'RECOUNT')
                     v_returns = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'UNLINKED_RETURN' and a['adjustment'].get('to_location_id') == location_id)
                     v_loc_pcs = [p for p in v_pcs if p['physical_count'].get('location_id') == location_id]
                     v_sales = item_sales_qty if location_id == 'LYB44WM2Q56VE' else 0
                 else:
-                    v_transfers_in = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'IN_STOCK')
-                    v_transfers_out = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('from_state') == 'IN_STOCK')
-                    v_waste = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'WASTE')
+                    v_transfers_in = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'IN_STOCK' and (a['adjustment'].get('source') or {}).get('name') == 'BigE_Inventory')
+                    v_transfers_out = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('from_state') == 'IN_STOCK' and (a['adjustment'].get('source') or {}).get('name') == 'BigE_Inventory')
+                    v_direct_restocks = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('from_state') == 'NONE' and a['adjustment'].get('to_state') == 'IN_STOCK' and (a['adjustment'].get('source') or {}).get('name') != 'BigE_Inventory' and (a['adjustment'].get('reason_id') or {}).get('type') != 'RECOUNT')
+                    v_recount_down = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'WASTE' and (a['adjustment'].get('reason_id') or {}).get('type') == 'RECOUNT')
+                    v_recount_up = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('from_state') == 'NONE' and a['adjustment'].get('to_state') == 'IN_STOCK' and (a['adjustment'].get('reason_id') or {}).get('type') == 'RECOUNT')
+                    v_waste = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'WASTE' and (a['adjustment'].get('reason_id') or {}).get('type') != 'RECOUNT')
                     v_returns = sum(int(float(a['adjustment']['quantity'])) for a in v_adjs if a['adjustment'].get('to_state') == 'UNLINKED_RETURN')
                     v_loc_pcs = v_pcs
                     v_sales = item_sales_qty
 
                 v_net_transfers = v_transfers_in - v_transfers_out
+                v_recount_net = v_recount_up - v_recount_down
                 v_sales_amount = v_sales * price
 
-                reconstructed_start = current_stock + v_sales - v_net_transfers + v_waste - v_returns
+                # Reconstructed starting count on start_date
+                reconstructed_start = current_stock + v_sales - v_net_transfers - v_direct_restocks + v_waste + v_recount_down - v_recount_up - v_returns
 
                 recount_count = len(v_loc_pcs)
                 latest_recount = None
@@ -2715,12 +2731,19 @@ def api_audit_data():
                 issues = []
                 if location_id == 'all' and v_transfers_in != v_transfers_out:
                     status = 'TRANSFER_MISMATCH'
-                    issues.append(f"Network Transfer Mismatch: In({v_transfers_in}) != Out({v_transfers_out})")
+                    issues.append(f"Network App Transfer Mismatch: In({v_transfers_in}) != Out({v_transfers_out})")
+                if v_direct_restocks > 0:
+                    status = 'DIRECT_RESTOCK'
+                    issues.append(f"{v_direct_restocks} units received directly in Square (not transferred via app)")
                 if v_waste > 0:
-                    if status == 'BALANCED': status = 'SHRINKAGE'
-                    issues.append(f"{v_waste} units marked as Waste/Loss")
-                if recount_count > 0:
-                    if status == 'BALANCED': status = 'RECOUNTED'
+                    status = 'SHRINKAGE'
+                    issues.append(f"{v_waste} units marked as Damaged/Waste")
+                if v_recount_down > 0 or v_recount_up > 0:
+                    status = 'RECOUNT_ADJUSTED'
+                    delta_desc = f"{v_recount_net:+d}" if v_recount_net != 0 else "0"
+                    issues.append(f"Recount adjustment ({delta_desc}): -{v_recount_down} missing, +{v_recount_up} found")
+                elif recount_count > 0:
+                    status = 'RECOUNTED'
                     issues.append(f"{recount_count} manual count override(s)")
                 if reconstructed_start < 0:
                     status = 'DISCREPANCY'
@@ -2738,7 +2761,7 @@ def api_audit_data():
                             'occurred_at': f"{d}T23:59:00Z",
                             'date_display': d,
                             'type': 'SALE',
-                            'badge_class': 'bg-success',
+                            'badge_class': 'bg-success text-white',
                             'delta': -int(sqty),
                             'location': 'Big E Stand',
                             'summary': f"Sold {int(sqty)} units via Square POS",
@@ -2753,9 +2776,47 @@ def api_audit_data():
                     from_l = loc_names.get(adj.get('from_location_id'), adj.get('from_location_id'))
                     to_l = loc_names.get(adj.get('to_location_id'), adj.get('to_location_id'))
                     occ = adj.get('occurred_at', '')
-                    src = (adj.get('source') or {}).get('name', 'Square')
+                    src = (adj.get('source') or {}).get('name') or 'Square'
+                    r_type = (adj.get('reason_id') or {}).get('type')
 
-                    if to_s == 'WASTE':
+                    if r_type == 'RECOUNT':
+                        if to_s == 'WASTE':
+                            timeline.append({
+                                'occurred_at': occ,
+                                'date_display': occ[:10],
+                                'type': 'RECOUNT_DOWN',
+                                'badge_class': 'bg-danger text-white',
+                                'delta': -aqty,
+                                'location': to_l,
+                                'summary': f"Manual Recount: -{aqty} units missing (adjusted down in Square)",
+                                'source': 'Square Recount',
+                                'is_highlight': True
+                            })
+                        elif from_s == 'NONE' and to_s == 'IN_STOCK':
+                            timeline.append({
+                                'occurred_at': occ,
+                                'date_display': occ[:10],
+                                'type': 'RECOUNT_UP',
+                                'badge_class': 'bg-success text-white',
+                                'delta': +aqty,
+                                'location': to_l,
+                                'summary': f"Manual Recount: +{aqty} units found (adjusted up in Square)",
+                                'source': 'Square Recount',
+                                'is_highlight': True
+                            })
+                    elif from_s == 'NONE' and to_s == 'IN_STOCK' and src != 'BigE_Inventory':
+                        timeline.append({
+                            'occurred_at': occ,
+                            'date_display': occ[:10],
+                            'type': 'DIRECT_RESTOCK',
+                            'badge_class': 'bg-warning text-dark',
+                            'delta': +aqty,
+                            'location': to_l,
+                            'summary': f"Direct Square Restock: +{aqty} units received directly in Square (Not from App Transfer)",
+                            'source': 'Square Dashboard/POS',
+                            'is_highlight': True
+                        })
+                    elif to_s == 'WASTE':
                         timeline.append({
                             'occurred_at': occ,
                             'date_display': occ[:10],
@@ -2763,18 +2824,19 @@ def api_audit_data():
                             'badge_class': 'bg-danger',
                             'delta': -aqty,
                             'location': to_l,
-                            'summary': f"Waste / Damaged / Shrinkage: -{aqty} units",
-                            'source': src
+                            'summary': f"Manual Waste / Damaged / Spoiled: -{aqty} units",
+                            'source': src,
+                            'is_highlight': True
                         })
                     elif from_s == 'IN_STOCK' and to_s == 'NONE':
                         timeline.append({
                             'occurred_at': occ,
                             'date_display': occ[:10],
                             'type': 'TRANSFER_OUT',
-                            'badge_class': 'bg-warning text-dark',
+                            'badge_class': 'bg-secondary text-white',
                             'delta': -aqty,
                             'location': from_l,
-                            'summary': f"Transferred OUT of {from_l}: -{aqty} units",
+                            'summary': f"Transferred OUT of {from_l}: -{aqty} units ({src})",
                             'source': src
                         })
                     elif from_s == 'NONE' and to_s == 'IN_STOCK':
@@ -2785,7 +2847,7 @@ def api_audit_data():
                             'badge_class': 'bg-info text-dark',
                             'delta': +aqty,
                             'location': to_l,
-                            'summary': f"Transferred IN to {to_l}: +{aqty} units",
+                            'summary': f"Transferred IN to {to_l}: +{aqty} units ({src})",
                             'source': src
                         })
 
@@ -2831,6 +2893,10 @@ def api_audit_data():
                     'transfers_in': v_transfers_in,
                     'transfers_out': v_transfers_out,
                     'net_transfers': v_net_transfers,
+                    'direct_restocks': v_direct_restocks,
+                    'recount_down': v_recount_down,
+                    'recount_up': v_recount_up,
+                    'recount_net': v_recount_net,
                     'waste_loss': v_waste,
                     'reconstructed_start': int(reconstructed_start),
                     'recount_count': recount_count,
@@ -2845,6 +2911,8 @@ def api_audit_data():
                 total_transfers_in += v_transfers_in
                 total_transfers_out += v_transfers_out
                 total_waste_loss += v_waste
+                total_recount_down += v_recount_down
+                total_recount_up += v_recount_up
                 total_physical_recounts += recount_count
 
         return jsonify({
@@ -2864,6 +2932,9 @@ def api_audit_data():
                 'total_transfers_out': total_transfers_out,
                 'network_transfer_balance': total_transfers_in - total_transfers_out,
                 'total_waste_loss': total_waste_loss,
+                'total_recount_down': total_recount_down,
+                'total_recount_up': total_recount_up,
+                'total_recount_net': total_recount_up - total_recount_down,
                 'total_physical_recounts': total_physical_recounts,
                 'items_count': len(items_report),
                 'issue_items_count': issue_items_count
