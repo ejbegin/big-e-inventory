@@ -1928,8 +1928,17 @@ def prediction_data():
         start_date = datetime.date(2026, 9, 12)
         end_date = datetime.date(2026, 10, 4)
 
-    today = datetime.datetime.now().astimezone().date()
+    now_dt = datetime.datetime.now().astimezone()
+    today = now_dt.date()
     today_str = today.strftime('%Y-%m-%d')
+    # Big E retail sales window (roughly 10:00 AM to 10:00 PM = 12 hours)
+    now_hour_float = now_dt.hour + (now_dt.minute / 60.0)
+    if now_hour_float <= 10.0:
+        intraday_progress = 0.05
+    elif now_hour_float >= 22.0:
+        intraday_progress = 1.0
+    else:
+        intraday_progress = max(0.05, min(0.95, (now_hour_float - 10.0) / 12.0))
     
     calendar_days = []
     elapsed_dows = {}
@@ -2115,16 +2124,21 @@ def prediction_data():
             for dow, count in remaining_dows.items():
                 expected_remaining_base += hist_days.get(dow, 0) * count
 
-            # Unadjusted baseline remainder (without live momentum)
+            # Unadjusted baseline remainder (without live momentum, accounting for units already sold today)
             unadj_daily = [hist_days.get(d['dow'], 0) * item_growth_factor for d in remaining_days_list]
-            baseline_remainder_unadjusted = round(sum(unadj_daily))
+            baseline_remainder_unadjusted = round(sum(
+                (max(0, v - int(act_today)) if d['is_today'] else v)
+                for d, v in zip(remaining_days_list, unadj_daily)
+            ))
 
             # Determine evaluation days for pace
             # Include completed days, plus today if today has registered meaningful sales or if no completed days exist
             eval_days = list(completed_days)
             today_dow = today.strftime('%A')
             today_base_exp = hist_days.get(today_dow, 0) * item_growth_factor
-            if (n_completed == 0 and act_today > 0) or (act_today > 0 and act_today >= max(1.0, today_base_exp * 0.5)):
+            # Include today in momentum evaluation only if intraday progress is meaningful or if Day 1
+            include_today_in_eval = (n_completed == 0 and act_today > 0) or (intraday_progress >= 0.20 and act_today > 0)
+            if include_today_in_eval:
                 today_day_obj = next((d for d in calendar_days if d['is_today']), None)
                 if today_day_obj and today_day_obj not in eval_days:
                     eval_days.append(today_day_obj)
@@ -2132,7 +2146,8 @@ def prediction_data():
             n_eval = len(eval_days)
 
             if n_eval > 0:
-                exp_eval = sum(hist_days.get(d['dow'], 0) for d in eval_days) * item_growth_factor
+                # Prorate today's expected baseline by intraday_progress so partial-day sales don't artificially depress pace
+                exp_eval = sum((hist_days.get(d['dow'], 0) * intraday_progress if d['is_today'] else hist_days.get(d['dow'], 0)) for d in eval_days) * item_growth_factor
                 act_eval = sum(float(act_by_date.get(d['date'], 0)) for d in eval_days)
 
                 # Cumulative pace
@@ -2145,7 +2160,7 @@ def prediction_data():
 
                 # Recency-weighted momentum: window of last 2-3 evaluated days
                 recent_days = eval_days[-3:] if len(eval_days) >= 3 else eval_days
-                recent_exp = sum(hist_days.get(d['dow'], 0) for d in recent_days) * item_growth_factor
+                recent_exp = sum((hist_days.get(d['dow'], 0) * intraday_progress if d['is_today'] else hist_days.get(d['dow'], 0)) for d in recent_days) * item_growth_factor
                 recent_act = sum(float(act_by_date.get(d['date'], 0)) for d in recent_days)
 
                 if recent_exp > 0.5 and recent_act > 0:
@@ -2191,9 +2206,9 @@ def prediction_data():
                 pace_pct_str = "+0%"
 
             raw_daily = [hist_days.get(d['dow'], 0) * adjusted_growth for d in remaining_days_list]
-            predicted_remaining = round(sum(raw_daily))
+            full_day_pred = round(sum(raw_daily))
             rounded_daily = [round(v) for v in raw_daily]
-            diff = predicted_remaining - sum(rounded_daily)
+            diff = full_day_pred - sum(rounded_daily)
             if diff != 0 and len(rounded_daily) > 0:
                 indices = sorted(range(len(raw_daily)), key=lambda i: raw_daily[i] - rounded_daily[i], reverse=(diff > 0))
                 for i in range(abs(diff)):
@@ -2206,14 +2221,23 @@ def prediction_data():
                 d_str = d['date']
                 exp_v = rounded_daily[idx]
                 act_v = int(act_by_date.get(d_str, 0))
+                rem_v = max(0, exp_v - act_v) if d['is_today'] else exp_v
                 daily_breakdown[d_str] = {
                     'expected': exp_v,
+                    'remaining': rem_v,
                     'actual': act_v,
                     'type': 'expected',
                     'is_today': d['is_today']
                 }
                 if d['is_today']:
                     today_expected = exp_v
+                    today_remaining_expected = rem_v
+
+            # Predicted remainder is remaining demand for the rest of today plus all future days
+            predicted_remaining = sum(
+                (max(0, rounded_daily[idx] - int(act_today)) if d['is_today'] else rounded_daily[idx])
+                for idx, d in enumerate(remaining_days_list)
+            )
 
             total_sales_history_sample += hist_total
             total_sales_2026_sample += actuals_qty
@@ -2225,9 +2249,11 @@ def prediction_data():
             sale_dates = [d_str for d_str, q in act_by_date.items() if q > 0]
             first_sale_date = min(sale_dates) if sale_dates else (calendar_days[0]['date'] if calendar_days else today_str)
 
-            # Active days from first recorded sale up to today
+            # Active days from first recorded sale up to today (prorate today by intraday_progress)
             active_days_list = [d for d in calendar_days if (d['is_past'] or d['is_today']) and d['date'] >= first_sale_date]
-            active_days_count = max(1, len(active_days_list))
+            active_past_count = len([d for d in active_days_list if d['is_past']])
+            has_today_active = any(d['is_today'] for d in active_days_list)
+            active_days_count = max(0.5, active_past_count + (intraday_progress if has_today_active else 0.0))
 
             # Daily pace over active selling days
             active_pace = actuals_qty / active_days_count
@@ -2235,7 +2261,9 @@ def prediction_data():
             # Recent sales (last 2-3 active days)
             recent_eval_days = active_days_list[-3:] if len(active_days_list) >= 3 else active_days_list
             recent_sales = sum(float(act_by_date.get(d['date'], 0)) for d in recent_eval_days)
-            recent_days_count = max(1, len(recent_eval_days))
+            recent_past_count = len([d for d in recent_eval_days if d['is_past']])
+            recent_has_today = any(d['is_today'] for d in recent_eval_days)
+            recent_days_count = max(0.5, recent_past_count + (intraday_progress if recent_has_today else 0.0))
             recent_pace = recent_sales / recent_days_count if recent_days_count > 0 else active_pace
 
             # Blended pace favoring recent run-rate
@@ -2248,9 +2276,9 @@ def prediction_data():
                 return 1.0
 
             raw_daily = [blended_pace * get_fair_dow_mult(d['dow']) * weather_multiplier for d in remaining_days_list]
-            predicted_remaining = round(sum(raw_daily))
+            full_day_pred = round(sum(raw_daily))
             rounded_daily = [round(v) for v in raw_daily]
-            diff = predicted_remaining - sum(rounded_daily)
+            diff = full_day_pred - sum(rounded_daily)
             if diff != 0 and len(rounded_daily) > 0:
                 indices = sorted(range(len(raw_daily)), key=lambda i: raw_daily[i] - rounded_daily[i], reverse=(diff > 0))
                 for i in range(abs(diff)):
@@ -2263,14 +2291,23 @@ def prediction_data():
                 d_str = d['date']
                 exp_v = rounded_daily[idx]
                 act_v = int(act_by_date.get(d_str, 0))
+                rem_v = max(0, exp_v - act_v) if d['is_today'] else exp_v
                 daily_breakdown[d_str] = {
                     'expected': exp_v,
+                    'remaining': rem_v,
                     'actual': act_v,
                     'type': 'expected',
                     'is_today': d['is_today']
                 }
                 if d['is_today']:
                     today_expected = exp_v
+                    today_remaining_expected = rem_v
+
+            # Predicted remainder is remaining demand for the rest of today plus all future days
+            predicted_remaining = sum(
+                (max(0, rounded_daily[idx] - int(act_today)) if d['is_today'] else rounded_daily[idx])
+                for idx, d in enumerate(remaining_days_list)
+            )
 
             daily_avg_val = round(blended_pace, 1)
             baseline_for_display = f"New ({actuals_qty} sold)"
@@ -2295,6 +2332,7 @@ def prediction_data():
                 act_v = int(act_by_date.get(d_str, 0))
                 daily_breakdown[d_str] = {
                     'expected': 0,
+                    'remaining': 0,
                     'actual': act_v,
                     'type': 'expected',
                     'is_today': d['is_today']
@@ -2307,6 +2345,7 @@ def prediction_data():
                 act_v = int(act_by_date.get(d_str, 0))
                 daily_breakdown[d_str] = {
                     'expected': 0,
+                    'remaining': 0,
                     'actual': act_v,
                     'type': 'actual',
                     'is_today': False
@@ -2390,12 +2429,16 @@ def prediction_data():
     # Calculate overall pace
     trend_multiplier = round(weather_multiplier * awareness_growth, 2)
     if total_sales_history_sample > 0 and total_sales_2026_sample > 0:
-        actual_vs_hist_ratio = (total_sales_2026_sample * (len(elapsed_dows) + len(remaining_dows))) / (total_sales_history_sample * (len(elapsed_dows) or 1))
+        elapsed_days_effective = max(0.5, len(elapsed_dows) + (intraday_progress if any(d['is_today'] for d in calendar_days) else 0.0))
+        total_event_days = len(elapsed_dows) + len(remaining_dows)
+        actual_vs_hist_ratio = (total_sales_2026_sample * total_event_days) / (total_sales_history_sample * elapsed_days_effective)
         trend_multiplier = round(max(0.7, min(2.5, actual_vs_hist_ratio * weather_multiplier)), 2)
 
     total_today_transfer_units = sum(p['today_transfer_needed'] for p in predictions)
     total_today_transfer_items = sum(1 for p in predictions if p['today_transfer_needed'] > 0)
     total_today_expected_units = sum(p['today_expected'] for p in predictions)
+    total_today_remaining_units = sum(p['today_remaining_expected'] for p in predictions)
+    total_today_sold_units = sum(int(act_info.get('by_date', {}).get(today_str, 0)) for act_info in sales_2026.values())
     surging_count = sum(1 for p in predictions if p['trend_status'] in ['SURGING', 'NEW_HOT'])
     trending_up_count = sum(1 for p in predictions if p['trend_status'] == 'TRENDING_UP')
     critical_stockout_items = sum(1 for p in predictions if p['status'] == 'CRITICAL_STOCKOUT')
@@ -2418,6 +2461,8 @@ def prediction_data():
         'today_summary': {
             'date': today_str,
             'expected_units': total_today_expected_units,
+            'sold_units': total_today_sold_units,
+            'remaining_units': total_today_remaining_units,
             'transfer_units': total_today_transfer_units,
             'transfer_items': total_today_transfer_items
         },

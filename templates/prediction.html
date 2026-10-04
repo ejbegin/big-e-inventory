@@ -1160,9 +1160,12 @@
                     if (statTodayEl) statTodayEl.innerText = `${tUnits} Units`;
                     const statTodaySubEl = document.getElementById('stat-today-transfer-sub');
                     if (statTodaySubEl) {
+                        const soldUnits = data.today_summary.sold_units || 0;
+                        const remUnits = (data.today_summary.remaining_units !== undefined) ? data.today_summary.remaining_units : expUnits;
+                        const progressSnippet = soldUnits > 0 ? `${soldUnits} sold, ${remUnits} rem` : `${expUnits} exp`;
                         statTodaySubEl.innerText = tUnits > 0
-                            ? `${tItems} items need restock (${expUnits} exp)`
-                            : `Booth covered for today (${expUnits} exp)`;
+                            ? `${tItems} items need restock (${progressSnippet})`
+                            : `Booth covered for today (${progressSnippet})`;
                     }
                 }
 
@@ -1345,7 +1348,13 @@
                     const dayData = (item.daily_breakdown && item.daily_breakdown[d.date]) ? item.daily_breakdown[d.date] : null;
                     if (d.is_today) {
                         const exp = dayData ? dayData.expected : (item.today_expected || 0);
+                        const act = dayData ? (dayData.actual || 0) : 0;
+                        const rem = (item.today_remaining_expected !== undefined) ? item.today_remaining_expected : Math.max(0, exp - act);
                         const transferNeeded = item.today_transfer_needed || 0;
+                        let progressText = '';
+                        if (act > 0) {
+                            progressText = `<span class="text-muted" style="font-size: 0.65rem; white-space: nowrap;">${act} sold &bull; ${rem} rem</span>`;
+                        }
                         let todayPill = '';
                         if (transferNeeded > 0) {
                             todayPill = `
@@ -1353,10 +1362,16 @@
                                     <i class="bi bi-box-arrow-up-right me-0.5"></i>Transfer ${transferNeeded}
                                 </span>
                             `;
-                        } else if (exp > 0) {
+                        } else if (rem > 0 && exp > 0) {
                             todayPill = `
-                                <span class="badge bg-success-subtle text-success border border-success-subtle mt-1" style="font-size: 0.68rem; white-space: nowrap;" title="Booth has ${inv.bige}, which is sufficient for today's expected sales (${exp})">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle mt-1" style="font-size: 0.68rem; white-space: nowrap;" title="Booth has ${inv.bige}, which is sufficient for remaining sales today (${rem})">
                                     <i class="bi bi-check me-0.5"></i>Booth OK (${inv.bige})
+                                </span>
+                            `;
+                        } else if (act >= exp && exp > 0) {
+                            todayPill = `
+                                <span class="badge bg-success text-white border border-success mt-1" style="font-size: 0.68rem; white-space: nowrap;" title="Target reached! ${act} sold out of ${exp} projected">
+                                    <i class="bi bi-check-circle-fill me-0.5"></i>Target Met
                                 </span>
                             `;
                         } else {
@@ -1366,7 +1381,8 @@
                         dailyCellsHtml += `
                             <td class="text-center today-col-cell">
                                 <div class="d-flex flex-column align-items-center justify-content-center">
-                                    <span class="fw-bold text-dark fs-6" title="${exp} expected sales today">${exp}</span>
+                                    <span class="fw-bold text-dark fs-6" title="${exp} full-day target (${act} sold so far, ${rem} remaining today)">${exp}</span>
+                                    ${progressText}
                                     ${todayPill}
                                 </div>
                             </td>
