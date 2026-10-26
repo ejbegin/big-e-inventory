@@ -16,7 +16,10 @@ import re
 
 load_dotenv()
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
 app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=365) # Long session lifetime
 
@@ -2561,7 +2564,7 @@ def fetch_audit_changes(vids, start_date_str, force_refresh=False):
         with open(AUDIT_CHANGES_CACHE_FILE, 'w') as f:
             json.dump({
                 'cached_at': now_iso,
-                'earliest_date': start_date_str if not is_incremental else cached_data.get('earliest_date', start_date_str),
+                'earliest_date': cached_data.get('earliest_date', start_date_str) if (is_incremental and cached_data) else start_date_str,
                 'physical_counts': final_pcs,
                 'non_sale_adjustments': final_adjs
             }, f)
@@ -2933,7 +2936,7 @@ def api_audit_data():
                         'warehouse': stock_wh,
                         'stand': stock_stand
                     },
-                    'sales_qty': int(v_sales),
+                    'sales_qty': v_sales,
                     'sales_amount': round(v_sales_amount, 2),
                     'transfers_in': v_transfers_in,
                     'transfers_out': v_transfers_out,
@@ -2951,7 +2954,7 @@ def api_audit_data():
                     'timeline': timeline
                 })
 
-                total_sales_units += int(v_sales)
+                total_sales_units += v_sales
                 total_sales_dollars += v_sales_amount
                 total_transfers_in += v_transfers_in
                 total_transfers_out += v_transfers_out

@@ -10,5 +10,7 @@ redirects.json
 static/logos/
 logos/
 audit_changes_cache.json
+data/
 scratch/
+
 

@@ -1,0 +1,26 @@
+[Unit]
+Description=Big E Inventory Management System & Demand Forecast
+After=network.target local-fs.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ejbegin
+Group=ejbegin
+WorkingDirectory=/opt/big-e-inventory
+Environment="PORT=8085"
+Environment="DATA_DIR=/opt/big-e-inventory/data"
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=-/opt/big-e-inventory/.env
+ExecStart=/opt/big-e-inventory/.venv/bin/gunicorn -c gunicorn.conf.py app:app
+Restart=always
+RestartSec=5s
+KillMode=mixed
+TimeoutStopSec=15
+LimitNOFILE=65536
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=big-e-inventory
+
+[Install]
+WantedBy=multi-user.target
