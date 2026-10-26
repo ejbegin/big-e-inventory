@@ -97,7 +97,13 @@ def save_allowed_users(user_list):
     return clean
 
 @app.before_request
-def require_login():
+def enforce_https_and_require_login():
+    # If accessed via Tailscale domain on plain HTTP, redirect to HTTPS on port 8443
+    if 'ts.net' in request.host.lower() and request.scheme == 'http':
+        host_no_port = request.host.split(':')[0]
+        full_url = f"https://{host_no_port}:8443{request.full_path}"
+        return redirect(full_url.rstrip('?'))
+
     allowed_routes = ['login', 'authorize', 'static', 'access_denied', 'qr_redirect', 'custom_uploaded_logo', 'card_landing', 'card_vcf']
     if request.endpoint not in allowed_routes:
         if 'user' not in session:
@@ -111,7 +117,10 @@ def require_login():
 @app.route('/login')
 def login():
     redirect_uri = url_for('authorize', _external=True)
+    if 'ts.net' in request.host.lower() and redirect_uri.startswith('http://'):
+        redirect_uri = 'https://' + redirect_uri[7:]
     return google.authorize_redirect(redirect_uri, prompt='select_account')
+
 
 @app.route('/authorize')
 def authorize():
