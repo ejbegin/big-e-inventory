@@ -41,9 +41,15 @@
 
 Accessible from any phone, tablet, or workstation connected to your Tailscale network or home Wi-Fi:
 
-- **Web Dashboard (Local)**: `http://192.168.1.10:8085`
-- **Web Dashboard (Tailscale)**: `http://100.64.115.12:8085` (or `http://familybrain.tail847443.ts.net:8085`)
-- **Direct Hub Link**: `http://192.168.1.10/bige` or `http://192.168.1.10/inventory`
+- **Web Dashboard (Local LAN)**: `http://192.168.1.10:8085`
+- **Web Dashboard (Tailscale HTTPS / OAuth)**: `https://familybrain.tail847443.ts.net:8443`
+- **FamilyBrain Hub Portal**: `http://192.168.1.10/bige` (LAN) or `https://familybrain.tail847443.ts.net/bige` (Tailscale)
+
+> [!IMPORTANT]
+> **Google OAuth Configuration**:
+> Google Cloud strictly requires HTTPS for non-localhost domains. The Authorized Redirect URI in Google Cloud Console must be:
+> `https://familybrain.tail847443.ts.net:8443/authorize`
+> *(For local dev, also keep `http://localhost:5000/authorize`)*
 
 ---
 
